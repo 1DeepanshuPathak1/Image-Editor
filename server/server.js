@@ -6,21 +6,21 @@ const path = require('path');
 const app = express();
 const PORT = 5000;
 
-// Middleware to allow cross-origin requests (CORS)
+//middleware
 app.use(cors());
 
-// Multer setup for file uploads
+//Multer for uploading imagess
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/'); // Uploads folder
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname)); // Save file with a timestamp
+    cb(null, Date.now() + path.extname(file.originalname)); 
   },
 });
 const upload = multer({ storage: storage });
 
-// Upload route
+//upload
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
@@ -29,10 +29,10 @@ app.post('/upload', upload.single('image'), (req, res) => {
   res.json({ message: 'File uploaded successfully', imageUrl });
 });
 
-// Serve static files from uploads folder
+//static files from uploads folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Start the server
+//starting server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
