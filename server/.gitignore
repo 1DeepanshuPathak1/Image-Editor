@@ -1,0 +1,12 @@
+
+.env
+Thumbs.db
+ehthumbs.db
+.vscode/
+*.code-workspace
+node_modules/
+npm-debug.log
+yarn-error.log
+*.log
+logs/
+npm-debug.log*
