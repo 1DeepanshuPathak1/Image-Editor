@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const mongoose = require('mongoose');
+const EditedImage = require('./models/EditedImage');
 const { spawn } = require('child_process');
 
 const UploadedImage = require('./models/UploadedImage');
@@ -47,6 +48,8 @@ app.get('/edit/:filterType', async (req, res) => {
 
     try {
         const editedImageBuffer = await applyFilter(uploadedImage.image, filterType);
+        const editedImage = new EditedImage({ image: editedImageBuffer });
+        await editedImage.save();
         const base64Image = editedImageBuffer.toString('base64');
         res.json({ message: 'Image edited successfully', image: base64Image }); // Return the edited image in base64 format
     } catch (error) {
