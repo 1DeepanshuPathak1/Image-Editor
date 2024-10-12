@@ -117,7 +117,13 @@ img {
 }
 
 .image-preview-container {
-    margin-top: 20px;
+    position: relative;
+}
+
+.image-preview-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
 }
 
 .preview-title {
@@ -129,8 +135,9 @@ img {
 }
 
 .uploaded-image {
-    max-width: 600px;
+    max-width: 100%;
     height: auto;
+    right: 6px;
     border: 2px solid #ddd;
     border-radius: 10px;
     padding: 5px;
@@ -160,25 +167,63 @@ img {
 
 .edits-button-container {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 20px;
-    padding: 5px;
-    margin-top: 5px;
+    gap: 10px;
+    margin-top: 10px;
 }
 
 .action-button {
-    padding: 10px 20px;
-    background-color: #45a049;
+    flex: 1 1 calc(20% - 10px);
+    padding: 10px;
+    background-color: #4CAF50;
     color: white;
     border: none;
     border-radius: 5px;
-    position: relative;
-    z-index: 2;
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.5s ease;
+    z-index: 4;
 }
 
 .action-button:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+.download-button {
+    position: absolute;
+    top: 35px;
+    right: 5px;
+    background-color: rgba(0, 0, 0, 0.6);
+    border: none;
+    color: white;
+    border-radius: 5px;
+    padding: 10px 15px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.5s ease;
+    z-index: 5;
+}
+
+.download-button:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+.save-button {
+    position: absolute;
+    top: 35px;
+    right: 60px;
+    background-color: rgba(0, 0, 0, 0.6);
+    border: none;
+    color: white;
+    border-radius: 5px;
+    padding: 10px 15px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.5s ease;
+    z-index: 5;
+}
+
+.save-button:hover {
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
 }

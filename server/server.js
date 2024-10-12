@@ -25,14 +25,14 @@ const upload = multer({ storage: storage });
 //handle image upload
 app.post('/upload', upload.single('image'), async (req, res) => {
   if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+    return res.status(400).json({ message: 'No file uploaded' });
   }
 
   const formattedTime = moment().format('DD/MM/YY-HH:mm');
 
   const uploadedImage = new UploadedImage({
-      image: req.file.buffer,
-      timestamp: formattedTime 
+    image: req.file.buffer,
+    timestamp: formattedTime
   });
   await uploadedImage.save();
   const base64Image = req.file.buffer.toString('base64');
@@ -40,29 +40,34 @@ app.post('/upload', upload.single('image'), async (req, res) => {
 });
 
 app.get('/edit/:filterType', async (req, res) => {
-    const filterType = req.params.filterType;
-    const imageId = req.query.id;
+  const filterType = req.params.filterType;
+  const imageId = req.query.id;
+  const rotation = req.query.rotation || 0; // Get rotation count from query parameters
 
-    const uploadedImage = await UploadedImage.findById(imageId);
-    if (!uploadedImage) {
-        return res.status(404).json({ message: 'Image not found' });
-    }
+  const uploadedImage = await UploadedImage.findById(imageId);
+  if (!uploadedImage) {
+    return res.status(404).json({ message: 'Image not found' });
+  }
 
-    try {
-        const editedImageBuffer = await applyFilter(uploadedImage.image, filterType);
-        const editedImage = new EditedImage({ image: editedImageBuffer });
-        await editedImage.save();
-        const base64Image = editedImageBuffer.toString('base64');
-        res.json({ message: 'Image edited successfully', image: base64Image });
-    } catch (error) {
-        res.status(500).json({ message: 'Error editing image', error });
-    }
+  try {
+    const editedImageBuffer = await applyFilter(uploadedImage.image, filterType, rotation); // Pass rotation count
+    const editedImage = new EditedImage({ image: editedImageBuffer });
+    await editedImage.save();
+    const base64Image = editedImageBuffer.toString('base64');
+    res.json({ message: 'Image edited successfully', image: base64Image });
+  } catch (error) {
+    res.status(500).json({ message: 'Error editing image', error });
+  }
 });
 
+
+
+
 //apply fliter with python script
-const applyFilter = async (imageBuffer, filterType) => {
+const applyFilter = async (imageBuffer, filterType, rotation = 0) => {
   return new Promise((resolve, reject) => {
-    const process = spawn('python', ['image_edit.py', filterType]);
+    const process = spawn('python', ['image_edit.py', filterType, rotation.toString()]);
+
     process.stdin.write(imageBuffer);
     process.stdin.end();
 
@@ -75,7 +80,8 @@ const applyFilter = async (imageBuffer, filterType) => {
 };
 
 
+
 //server start
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
