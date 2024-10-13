@@ -5,13 +5,11 @@ const mongoose = require('mongoose');
 const EditedImage = require('./models/EditedImage');
 const moment = require('moment');
 const { spawn } = require('child_process');
-
 const UploadedImage = require('./models/UploadedImage');
 
 const app = express();
 const PORT = 5000;
 
-// mongo connection
 mongoose.connect('mongodb://localhost:27017/imageEditorDB')
   .then(() => console.log('Connected to MongoDB successfully'))
   .catch((err) => console.error('Error connecting to MongoDB:', err));
@@ -19,24 +17,17 @@ mongoose.connect('mongodb://localhost:27017/imageEditorDB')
 app.use(cors());
 app.use(express.json());
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage() });
 
-//handle image upload
 app.post('/upload', upload.single('image'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
+  if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
   const formattedTime = moment().format('DD/MM/YY-HH:mm');
-
-  const uploadedImage = new UploadedImage({
-    image: req.file.buffer,
-    timestamp: formattedTime
-  });
+  const uploadedImage = new UploadedImage({ image: req.file.buffer, timestamp: formattedTime });
   await uploadedImage.save();
+
   const base64Image = req.file.buffer.toString('base64');
-  res.json({ message: 'File uploaded successfully', image: base64Image, id: uploadedImage._id, timestamp: formattedTime });
+  res.json({ message: 'File uploaded successfully', image: base64Image, id: uploadedImage._id });
 });
 
 app.get('/edit/:filterType', async (req, res) => {
@@ -50,38 +41,27 @@ app.get('/edit/:filterType', async (req, res) => {
   }
 
   try {
-    const editedImageBuffer = await applyFilter(uploadedImage.image, filterType, rotation); // Pass rotation count
-    const editedImage = new EditedImage({ image: editedImageBuffer });
-    await editedImage.save();
+    const editedImageBuffer = await applyFilter(uploadedImage.image, filterType, rotation);
     const base64Image = editedImageBuffer.toString('base64');
     res.json({ message: 'Image edited successfully', image: base64Image });
   } catch (error) {
+    console.error('Error during editing:', error); // Add this line for debugging
     res.status(500).json({ message: 'Error editing image', error });
   }
 });
 
 
-
-
-//apply fliter with python script
-const applyFilter = async (imageBuffer, filterType, rotation = 0) => {
+const applyFilter = (imageBuffer, filterType, rotation) => {
   return new Promise((resolve, reject) => {
     const process = spawn('python', ['image_edit.py', filterType, rotation.toString()]);
-
     process.stdin.write(imageBuffer);
     process.stdin.end();
 
-    let editedImageData = [];
-    process.stdout.on('data', (data) => editedImageData.push(data));
-    process.stderr.on('data', (data) => reject(new Error(data.toString())));
-    process.on('error', reject);
-    process.on('close', (code) => code ? reject(new Error(`Exited with code ${code}`)) : resolve(Buffer.concat(editedImageData)));
+    let data = [];
+    process.stdout.on('data', chunk => data.push(chunk));
+    process.stderr.on('data', err => reject(err.toString()));
+    process.on('close', code => code === 0 ? resolve(Buffer.concat(data)) : reject('Process failed'));
   });
 };
 
-
-
-//server start
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
