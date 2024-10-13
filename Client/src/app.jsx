@@ -3,63 +3,65 @@ import { useState } from 'react';
 function App() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [message, setMessage] = useState('Waiting for server response...');
-    const [imageUrl, setImageUrl] = useState(null); // Original uploaded image
-    const [editedImageUrl, setEditedImageUrl] = useState(null); // Current edited image
+    const [imageUrl, setImageUrl] = useState(null);
+    const [editedImageUrl, setEditedImageUrl] = useState(null);
     const [imageId, setImageId] = useState(null);
     const [rotationCount, setRotationCount] = useState(0);
-    const [history, setHistory] = useState([]); // History of edits
-    const [tempOriginalImage, setTempOriginalImage] = useState(null); // Temp saved image
+    const [history, setHistory] = useState([]);
+    const [tempOriginalImage, setTempOriginalImage] = useState(null);
+    const [filterType, setFilterType] = useState(null);
+    const [intensity, setIntensity] = useState(50);
+    const [showSlider, setShowSlider] = useState(false);
 
-    const handleFileChange = (event) => {
-        setSelectedFile(event.target.files[0]);
-    };
+    const filtersWithIntensity = ['blur', 'brightness', 'contrast', 'vignette', 'sepia'];
+    const filters = ['greyscale', 'blackwhite', ...filtersWithIntensity, 'invert', 'edge', 'rotate'];
 
-    const handleUpload = async (event) => {
-        event.preventDefault();
+    const handleFileChange = (e) => setSelectedFile(e.target.files[0]);
+
+    const handleUpload = async (e) => {
+        e.preventDefault();
         const formData = new FormData();
         formData.append('image', selectedFile);
 
         try {
-            const response = await fetch('http://localhost:5000/upload', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-            const base64Image = `data:image/png;base64,${data.image}`;
-
-            setMessage(data.message);
-            setImageUrl(base64Image);
-            setImageId(data.id);
+            const { image, id, message } = await (await fetch('http://localhost:5000/upload', { method: 'POST', body: formData })).json();
+            setImageUrl(`data:image/png;base64,${image}`);
+            setImageId(id);
             setRotationCount(0);
-            setHistory([base64Image]);
+            setHistory([image]);
             setEditedImageUrl(null);
-            setTempOriginalImage(base64Image); // Initialize temp original
-        } catch (error) {
-            console.error('Error uploading file:', error);
+            setTempOriginalImage(`data:image/png;base64,${image}`);
+            setMessage(message);
+        } catch {
             setMessage('Error uploading file.');
         }
     };
 
-    const handleEdit = async (filterType) => {
+    const handleEdit = async (selectedFilterType = filterType, sliderValue = intensity) => {
         try {
             let rotationParam = rotationCount;
-            if (filterType === 'rotate') {
+            if (selectedFilterType === 'rotate') {
                 rotationParam += 90;
                 setRotationCount(rotationParam);
             }
 
-            const response = await fetch(`http://localhost:5000/edit/${filterType}?id=${imageId}&rotation=${rotationParam}`);
+            const response = await fetch(`http://localhost:5000/edit/${selectedFilterType}?id=${imageId}&rotation=${rotationParam}&intensity=${sliderValue}`);
             if (!response.ok) throw new Error('Error editing image');
 
             const data = await response.json();
             const base64Image = `data:image/png;base64,${data.image}`;
-
             setEditedImageUrl(base64Image);
             setHistory((prev) => [...prev, base64Image]);
             setMessage('Changes applied! Click "Save" to save the current changes.');
-        } catch (error) {
-            console.error('Error during editing:', error);
+        } catch {
+            console.error('Error during editing:');
         }
+    };
+
+    const handleFilterSelection = (filter) => {
+        setFilterType(filter);
+        setShowSlider(filtersWithIntensity.includes(filter));
+        if (!filtersWithIntensity.includes(filter)) handleEdit(filter);
     };
 
     const handleUndo = () => {
@@ -72,13 +74,14 @@ function App() {
     };
 
     const handleReset = () => {
-        setEditedImageUrl(imageUrl); // Reset to the original uploaded image
+        setEditedImageUrl(imageUrl);
         setMessage("Restored to the original uploaded image.");
     };
 
     const handleShowSavedImage = () => {
         if (tempOriginalImage) {
-            setEditedImageUrl(tempOriginalImage); // Display the saved image
+            setEditedImageUrl(tempOriginalImage);
+            setMessage('Showing the saved image.');
         }
     };
 
@@ -86,24 +89,18 @@ function App() {
         const imageToSave = editedImageUrl || imageUrl;
         if (imageToSave) {
             try {
-                const response = await fetch(imageToSave);
-                const blob = await response.blob();
+                const blob = await (await fetch(imageToSave)).blob();
                 const formData = new FormData();
                 formData.append('image', blob, 'saved_image.png');
 
-                const uploadResponse = await fetch('http://localhost:5000/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-                const data = await uploadResponse.json();
-
+                const { id } = await (await fetch('http://localhost:5000/upload', { method: 'POST', body: formData })).json();
+                setTempOriginalImage(imageToSave);
                 setMessage('Image saved successfully!');
-                setImageId(data.id);
+                setImageId(id);
                 setRotationCount(0);
                 setHistory([imageToSave]);
-                setTempOriginalImage(imageToSave); // Update temp original
-            } catch (error) {
-                console.error('Error saving image:', error);
+            } catch {
+                console.error('Error saving image:');
             }
         }
     };
@@ -115,12 +112,6 @@ function App() {
         link.download = 'edited_image.png';
         link.click();
     };
-
-    const filters = [
-        'greyscale', 'blackwhite', 'vignette', 'rotate',
-        'blur', 'brightness', 'contrast', 'sepia',
-        'invert', 'edge'
-    ];
 
     return (
         <div className="container">
@@ -142,22 +133,28 @@ function App() {
                     <img src={editedImageUrl || imageUrl} alt="Uploaded" className="uploaded-image" />
                 </div>
             )}
-            <div className="edits-button-container">
-                {filters.map((filter, index) => (
-                    <button
-                        key={index}
-                        className="action-button"
-                        onClick={() => handleEdit(filter)}
-                    >
-                        {filter}
-                    </button>
-                ))}
-            </div>
-            <div className="edits-button-container">
-                <button className="action-button" onClick={handleUndo}>Undo</button>
-                <button className="action-button" onClick={handleShowSavedImage}>Saved Image</button>
-                <button className="action-button" onClick={handleReset}>Original Image</button>
-            </div>
+            {imageUrl && (
+                <>
+                    <div className="edits-button-container">
+                        {filters.map((filter) => (
+                            <button key={filter} className="action-button" onClick={() => handleFilterSelection(filter)}>
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                    {showSlider && (
+                        <div className="slider-container">
+                            <input type="range" min="0" max="100" value={intensity} onChange={(e) => setIntensity(e.target.value)} />
+                            <button onClick={() => handleEdit(filterType, intensity)} className="apply-button">Apply</button>
+                        </div>
+                    )}
+                    <div className="edits-button-containers">
+                        <button className="action-buttons" onClick={handleUndo}>Undo</button>
+                        <button className="action-buttons" onClick={handleShowSavedImage}>Saved Image</button>
+                        <button className="action-buttons" onClick={handleReset}>Original Image</button>
+                    </div>
+                </>
+            )}
         </div>
     );
 }

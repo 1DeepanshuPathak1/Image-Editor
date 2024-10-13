@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 
 const editedImageSchema = new mongoose.Schema({
   image: { type: Buffer, required: true },
+  timestamp: { type: String, required: true }
 });
 
 const EditedImage = mongoose.model('EditedImage', editedImageSchema);

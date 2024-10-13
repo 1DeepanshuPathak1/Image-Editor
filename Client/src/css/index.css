@@ -79,7 +79,7 @@ img {
 
 .upload-button {
     padding: 10px 20px;
-    background-color: #4CAF50;
+    background-color: rgba(0, 0, 0, 0.6);
     color: white;
     border: none;
     border-radius: 5px;
@@ -142,7 +142,7 @@ img {
     border-radius: 10px;
     padding: 5px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.5s ease;
+    transition: box-shadow 1s ease;
     position: relative;
     z-index: 1;
 }
@@ -171,18 +171,56 @@ img {
     justify-content: center;
     gap: 10px;
     margin-top: 10px;
+    padding: 10px;
+    border: 2px solid #666;
+    margin-bottom: 75px;
+    z-index: 5;
 }
 
-.action-button {
+.edits-button-containers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px;
+    border: 2px solid #666;
+    margin-top: 10px;
+    z-index: 5;
+}
+.edits-button-container:hover {
+    border: 2px solid rgba(0, 255, 8, 0.971);
+}
+
+.edits-button-containers:hover {
+    border: 2px solid rgba(0, 255, 8, 0.971);
+}
+
+.action-buttons {
     flex: 1 1 calc(20% - 10px);
     padding: 10px;
-    background-color: #4CAF50;
+    background-color: rgba(0, 0, 0, 0.6);
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.5s ease;
+    transition: box-shadow 0.6  s ease;
+    z-index: 4;
+}
+.action-buttons:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+.action-button {
+    flex: 1 1 calc(20% - 10px);
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.6s ease;
     z-index: 4;
 }
 
@@ -201,7 +239,7 @@ img {
     padding: 10px 15px;
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.5s ease;
+    transition: box-shadow 1s ease;
     z-index: 5;
 }
 
@@ -220,10 +258,51 @@ img {
     padding: 10px 15px;
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.5s ease;
+    transition: box-shadow 1s ease;
     z-index: 5;
 }
 
 .save-button:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+.slider-container input[type="range"] {
+    width: 100%;
+    max-width: 500px; 
+    margin: 0 auto; 
+    z-index: 5;
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    margin-top: 10px;
+    margin-bottom: 30px;
+    gap: 10px;
+}
+.slider-container:hover {
+    border: 2px solid rgba(0, 255, 8, 0.971);
+}
+
+.filter-slider {
+    width: 100%;
+}
+
+.apply-button {
+    padding: 10px 15px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 1s ease;
+    z-index: 5;
+}
+
+.apply-button:hover {
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
 }
