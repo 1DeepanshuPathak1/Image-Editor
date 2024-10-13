@@ -24,7 +24,7 @@ function App() {
         formData.append('image', selectedFile);
 
         try {
-            const { image, id, message } = await (await fetch('http://localhost:5000/upload', { method: 'POST', body: formData })).json();
+            const { image, id, message } = await (await fetch('http://localhost:3000/upload', { method: 'POST', body: formData })).json();
             setImageUrl(`data:image/png;base64,${image}`);
             setImageId(id);
             setRotationCount(0);
@@ -45,7 +45,7 @@ function App() {
                 setRotationCount(rotationParam);
             }
 
-            const response = await fetch(`http://localhost:5000/edit/${selectedFilterType}?id=${imageId}&rotation=${rotationParam}&intensity=${sliderValue}`);
+            const response = await fetch(`http://localhost:3000/edit/${selectedFilterType}?id=${imageId}&rotation=${rotationParam}&intensity=${sliderValue}`);
             if (!response.ok) throw new Error('Error editing image');
 
             const data = await response.json();
@@ -93,7 +93,7 @@ function App() {
                 const formData = new FormData();
                 formData.append('image', blob, 'saved_image.png');
 
-                const { id } = await (await fetch('http://localhost:5000/upload', { method: 'POST', body: formData })).json();
+                const { id } = await (await fetch('http://localhost:3000/upload', { method: 'POST', body: formData })).json();
                 setTempOriginalImage(imageToSave);
                 setMessage('Image saved successfully!');
                 setImageId(id);

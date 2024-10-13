@@ -24,14 +24,9 @@ async function FilterRequest(req,res) {
 
 async function UploadPost(req,res){
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    console.log("araa hai");
-
     const formattedTime = moment().format('DD/MM/YY-HH:mm');
-    console.log("araa hai");
     const uploadedImage = new UploadedImage({ image: req.file.buffer, timestamp: formattedTime });
-    console.log("araa hai");
     await uploadedImage.save();
-    console.log("araa hai");
     const base64Image = req.file.buffer.toString('base64');
     res.json({ message: 'File uploaded successfully', image: base64Image, id: uploadedImage._id });
 }

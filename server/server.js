@@ -30,6 +30,6 @@ app.get('/edit/:filterType', FilterRequest);
 // Function applying using python script
 
 MongoDB(connectionURL).then(()=>{
-    app.listen(port, () => {console.log(`Server running on port ${port}`)});
+    app.listen(3000, () => {console.log(`Server running on port ${port}`)});
 })
 
