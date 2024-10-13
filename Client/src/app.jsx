@@ -4,7 +4,7 @@ function App() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [message, setMessage] = useState('Waiting for server response...');
     const [imageUrl, setImageUrl] = useState(null);
-    const [editedImageUrl, setEditedImageUrl] = useState(null);
+    const [EditedImage, setEditedImage] = useState(null);
     const [imageId, setImageId] = useState(null);
     const [rotationCount, setRotationCount] = useState(0);
     const [history, setHistory] = useState([]);
@@ -29,7 +29,7 @@ function App() {
             setImageId(id);
             setRotationCount(0);
             setHistory([image]);
-            setEditedImageUrl(null);
+            setEditedImage(null);
             setTempOriginalImage(`data:image/png;base64,${image}`);
             setMessage(message);
         } catch {
@@ -50,7 +50,7 @@ function App() {
 
             const data = await response.json();
             const base64Image = `data:image/png;base64,${data.image}`;
-            setEditedImageUrl(base64Image);
+            setEditedImage(base64Image);
             setHistory((prev) => [...prev, base64Image]);
             setMessage('Changes applied! Click "Save" to save the current changes.');
         } catch {
@@ -68,25 +68,25 @@ function App() {
         if (history.length > 1) {
             const newHistory = [...history];
             newHistory.pop();
-            setEditedImageUrl(newHistory[newHistory.length - 1]);
+            setEditedImage(newHistory[newHistory.length - 1]);
             setHistory(newHistory);
         }
     };
 
     const handleReset = () => {
-        setEditedImageUrl(imageUrl);
+        setEditedImage(imageUrl);
         setMessage("Restored to the original uploaded image.");
     };
 
     const handleShowSavedImage = () => {
         if (tempOriginalImage) {
-            setEditedImageUrl(tempOriginalImage);
+            setEditedImage(tempOriginalImage);
             setMessage('Showing the saved image.');
         }
     };
 
     const handleSave = async () => {
-        const imageToSave = editedImageUrl || imageUrl;
+        const imageToSave = EditedImage || imageUrl;
         if (imageToSave) {
             try {
                 const blob = await (await fetch(imageToSave)).blob();
@@ -106,7 +106,7 @@ function App() {
     };
 
     const handleDownload = () => {
-        const imageToDownload = editedImageUrl || imageUrl;
+        const imageToDownload = EditedImage || imageUrl;
         const link = document.createElement('a');
         link.href = imageToDownload;
         link.download = 'edited_image.png';
@@ -130,7 +130,7 @@ function App() {
                     <button className="download-button" onClick={handleDownload}>
                         <i className="fas fa-download"></i>
                     </button>
-                    <img src={editedImageUrl || imageUrl} alt="Uploaded" className="uploaded-image" />
+                    <img src={EditedImage || imageUrl} alt="Uploaded" className="uploaded-image" />
                 </div>
             )}
             {imageUrl && (
