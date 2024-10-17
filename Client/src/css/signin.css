@@ -1,0 +1,100 @@
+/* Reset styles for the document */
+html, body {
+    margin: -8px;
+    padding: 0;
+    height: auto; /* Ensure body takes full height */
+    width: 100%; /* Ensure body takes full width */
+    font-family: Arial, sans-serif; /* Use a consistent font */
+    overflow-y: hidden;
+    overflow-x: hidden;
+}
+
+/* Background for the Sign In page */
+.signin-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background-image: url('../../test.jpg'); /* Ensure this path is correct */
+    background-size: cover;
+    background-position: center;
+    filter: blur(2.5px);
+    z-index: -1;
+}
+
+/* Main container for Sign In form */
+.signin-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Form container styling */
+.form-container {
+    width: 380px; /* Fixed width to prevent stretching */
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 1s ease;
+}
+.form-container:hover{
+    box-shadow:
+        10px 10px 20px rgba(0, 255, 0, 0.5),
+        -10px -10px 20px rgba(0, 255, 0, 0.4),
+        0px 0px 100px rgba(0, 255, 0, 0.3);
+}
+
+/* Heading styling */
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Input field styling for email and password */
+.signin-container input[type="email"],
+.signin-container input[type="password"] {
+    width: 95%; /* Ensure input fields fill the container */
+    height: 40px;
+    margin-bottom: 15px;
+    padding: 0 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+/* Button styling */
+.signin-container button {
+    width: 100%;
+    height: 45px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.5s ease; 
+}
+
+/* Button hover effect */
+.signin-container button:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+/* Link styling for the prompt */
+.signin-container p {
+    text-align: center;
+    margin-top: 15px;
+}
+
+/* Link color */
+.signin-container p a {
+    color: rgb(0, 110, 255);
+    text-decoration: underline;
+}

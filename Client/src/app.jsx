@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import EditPage from './views/EditPage';
 import Home from './views/home';
 import Menu from './views/Menu';
+import SignIn from './views/SignIn';
+import './css/index.css';
+import SignUp from './views/SignUp';
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
+    const [isSignedIn, setIsSignedIn] = useState(false);
 
     const toggleMenu = () => {
         setMenuOpen(!isMenuOpen);
@@ -14,11 +18,13 @@ function App() {
     return (
         <div>
             <button onClick={toggleMenu} className="menu-button">Menu</button>
-            <Menu isOpen={isMenuOpen} toggleMenu={toggleMenu} />
-            
+            <Menu isOpen={isMenuOpen} toggleMenu={toggleMenu} isSignedIn={isSignedIn} setIsSignedIn={setIsSignedIn} />
+
             <Routes>
                 <Route path="/" element={<Home />} />
-                <Route path="/edit" element={<EditPage />} />
+                <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" />} />
+                <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} /> {/* Sign-in route */}
+                <Route path="/signup" element={<SignUp setIsSignedIn={setIsSignedIn} />} />
             </Routes>
         </div>
     );

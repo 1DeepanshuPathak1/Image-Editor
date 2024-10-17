@@ -4,7 +4,7 @@
     left: -250px; /* Hidden off-screen */
     height: 100%;
     width: 200px; /* Adjusted width */
-    background-color: #333; /* Background color */
+    background: rgba(255, 255, 255, 0.8); /* Background color */
     color: white; /* Text color */
     transition: left 0.3s ease; /* Smooth transition */
     z-index: 1000; /* Make sure the menu is above other content */
@@ -16,7 +16,8 @@
 
 .menu ul {
     list-style-type: none; /* Remove bullets */
-    padding: 40px 10px; /* Added padding for space */
+    padding: 40px 15px; /* Added padding for space */
+    margin-top: 30px;
 }
 
 .menu li {

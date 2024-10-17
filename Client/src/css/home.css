@@ -1,31 +1,71 @@
+body{
+    background: rgba(0, 0, 0, 0.5);
+    overflow-x: hidden;
+}
 .home-container {
     padding: 20px;
     text-align: center;
 }
 
-
 .features-steps-container {
     display: flex; /* Use flexbox for side-by-side layout */
-    justify-content: space-between; /* Space between the containers */
-    margin: 20px 0; /* Margin for spacing */
+    justify-content: center; /* Center the containers horizontally */
+    margin: 40px 0; /* Margin above and below the containers */
 }
 
-.features-container, .steps-container {
-    flex: 0.4; /* Make both containers take equal space */
-    margin: 10px; /* Margin between containers */
+.features-container,
+.steps-container {
+    flex: 0.3; /* Make both containers take equal space */
+    margin: 10px; /* Removed margin between containers to bring them closer */
     padding: 15px;
-    border: 1px solid #ccc;
+    border: 2px solid #ccc;
     border-radius: 8px;
     background-color: #f9f9f9;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.6s ease;
 }
 
-.features-container h2, .steps-container h2 {
+.features-container h2,
+.steps-container h2 {
     margin-top: 0;
+}
+.features-container:hover,.steps-container:hover{
+    border: 2px solid rgba(0, 255, 8, 0.971);
+    box-shadow: 0 0 60px rgba(0, 255, 0, 0.1);
 }
 
 .comments-section {
-    margin-top: 100px;
+    margin-top: 40px; /* Space above the comments section */
     font-style: italic;
+    margin-bottom: 0;
     font-size: 18px;
+    padding: 10px;
+    width: 1000px;
+    left: 14%;
+    border: 1px solid #ccc;
+    overflow: hidden; /* Hide overflow to achieve scrolling effect */
+    white-space: nowrap; /* Prevent text wrapping */
+    position: relative; /* Position relative for child */
+    height: 18px; /* Fixed height for the container */
+}
+
+.scrolling-comments {
+    display: inline-block; /* Align items in a line */
+    animation: scroll 30s linear infinite; /* Slowed down the scrolling */
+}
+
+/* Keyframes for scrolling effect */
+@keyframes scroll {
+    0% {
+        transform: translateX(0); /* Start at the left */
+    }
+    100% {
+        transform: translateX(-50%); /* Move to the left off the screen */
+    }
+}
+
+/* Adding spacing between comments */
+.spacing {
+    display: inline-block; /* Make it occupy space */
+    width: 40px; /* Adjust width for spacing */
 }
