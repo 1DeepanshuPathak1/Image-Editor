@@ -187,6 +187,7 @@ img {
     margin-top: 10px;
     z-index: 5;
 }
+
 .edits-button-container:hover {
     border: 2px solid rgba(0, 255, 8, 0.971);
 }
@@ -204,9 +205,10 @@ img {
     border-radius: 5px;
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.6  s ease;
+    transition: box-shadow 0.6 s ease;
     z-index: 4;
 }
+
 .action-buttons:hover {
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
 }
@@ -268,8 +270,8 @@ img {
 
 .slider-container input[type="range"] {
     width: 100%;
-    max-width: 500px; 
-    margin: 0 auto; 
+    max-width: 500px;
+    margin: 0 auto;
     z-index: 5;
 }
 
@@ -283,6 +285,7 @@ img {
     margin-bottom: 30px;
     gap: 10px;
 }
+
 .slider-container:hover {
     border: 2px solid rgba(0, 255, 8, 0.971);
 }
@@ -305,4 +308,17 @@ img {
 
 .apply-button:hover {
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+.menu-button {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    margin-bottom: 20px;
+    background-color: #007BFF; /* Button color */
+    color: white; /* Text color */
+    border: none; /* No border */
+    padding: 10px 15px; /* Padding */
+    cursor: pointer; /* Pointer cursor */
+    z-index: 1001; /* Above menu */
 }

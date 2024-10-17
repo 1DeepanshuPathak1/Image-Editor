@@ -1,0 +1,31 @@
+.home-container {
+    padding: 20px;
+    text-align: center;
+}
+
+
+.features-steps-container {
+    display: flex; /* Use flexbox for side-by-side layout */
+    justify-content: space-between; /* Space between the containers */
+    margin: 20px 0; /* Margin for spacing */
+}
+
+.features-container, .steps-container {
+    flex: 0.4; /* Make both containers take equal space */
+    margin: 10px; /* Margin between containers */
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.features-container h2, .steps-container h2 {
+    margin-top: 0;
+}
+
+.comments-section {
+    margin-top: 100px;
+    font-style: italic;
+    font-size: 18px;
+}

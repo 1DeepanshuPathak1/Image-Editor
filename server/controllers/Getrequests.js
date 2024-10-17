@@ -24,6 +24,7 @@ async function FilterRequest(req,res) {
 
 async function UploadPost(req,res){
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    
     const formattedTime = moment().format('DD/MM/YY-HH:mm');
     const uploadedImage = new UploadedImage({ image: req.file.buffer, timestamp: formattedTime });
     await uploadedImage.save();

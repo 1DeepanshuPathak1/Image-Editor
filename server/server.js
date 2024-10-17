@@ -1,35 +1,37 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
-const {MongoDB} = require('./controllers/database');
-const {FilterRequest,UploadPost} = require('./controllers/Getrequests');
-require('dotenv').config({path:'./.env'})
-
-
+const path = require('path');
+const { MongoDB } = require('./controllers/database');
+const { FilterRequest, UploadPost } = require('./controllers/Getrequests');
+require('dotenv').config({ path: './.env' });
 
 const app = express();
-const port = process.env.PORT;
+const port = process.env.PORT || 3000;
 
 // MongoDB connection
-connectionURL = 'mongodb://localhost:27017/imageEditorDB';
+const connectionURL = 'mongodb://localhost:27017/imageEditorDB';
 
-
-//Middle-ware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Multer 
+// Multer setup for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Image Upload
+// Routes for Upload and Editing
 app.post('/upload', upload.single('image'), UploadPost);
-
-// Image Editing
 app.get('/edit/:filterType', FilterRequest);
 
-// Function applying using python script
+// Serve static React files
+app.use(express.static(path.join(__dirname, 'Client', 'dist')));
 
-MongoDB(connectionURL).then(()=>{
-    app.listen(3000, () => {console.log(`Server running on port ${port}`)});
-})
+// Catch-all route to serve React's index.html for client-side routing
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'Client', 'dist', 'index.html'));
+});
 
+// Start server after MongoDB connection
+MongoDB(connectionURL).then(() => {
+    app.listen(port, () => console.log(`Server running on port ${port}`));
+});

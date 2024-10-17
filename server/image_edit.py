@@ -4,20 +4,20 @@ import io
 
 def apply_filter(image_data, filter_type, rotation, intensity=50):
     img = Image.open(io.BytesIO(image_data))
-    factor = intensity / 50  # Normalize intensity
+    factor = intensity / 50
 
     if filter_type == 'greyscale':
         img = ImageOps.grayscale(img)
     elif filter_type == 'blackwhite':
         img = img.convert('L').point(lambda p: 255 if p > 128 else 0, '1')
     elif filter_type == 'blur':
-        img = img.filter(ImageFilter.GaussianBlur(factor * 10))  # Increase the multiplier for visibility
+        img = img.filter(ImageFilter.GaussianBlur(factor * 10))
     elif filter_type == 'brightness':
         enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(factor * 2)  # Adjust factor for more visibility
+        img = enhancer.enhance(factor * 2) 
     elif filter_type == 'contrast':
         enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(factor * 2)  # Adjust factor for more visibility
+        img = enhancer.enhance(factor * 2)
     elif filter_type == 'sepia':
         # Apply sepia filter
         sepia_image = Image.new("RGB", img.size)
