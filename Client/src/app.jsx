@@ -22,7 +22,7 @@ function App() {
 
             <Routes>
                 <Route path="/" element={<Home />} />
-                <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" />} />
+                <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" state={{ from: '/edit' }}/>} />
                 <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} /> {/* Sign-in route */}
                 <Route path="/signup" element={<SignUp setIsSignedIn={setIsSignedIn} />} />
             </Routes>
