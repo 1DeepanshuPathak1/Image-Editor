@@ -8,15 +8,15 @@ body{
 }
 
 .features-steps-container {
-    display: flex; /* Use flexbox for side-by-side layout */
-    justify-content: center; /* Center the containers horizontally */
-    margin: 40px 0; /* Margin above and below the containers */
+    display: flex;
+    justify-content: center; 
+    margin: 40px 0;
 }
 
 .features-container,
 .steps-container {
-    flex: 0.3; /* Make both containers take equal space */
-    margin: 10px; /* Removed margin between containers to bring them closer */
+    flex: 0.3; 
+    margin: 10px; 
     padding: 15px;
     border: 2px solid #ccc;
     border-radius: 8px;
@@ -35,7 +35,7 @@ body{
 }
 
 .comments-section {
-    margin-top: 40px; /* Space above the comments section */
+    margin-top: 40px; 
     font-style: italic;
     margin-bottom: 0;
     font-size: 18px;
@@ -43,29 +43,27 @@ body{
     width: 1000px;
     left: 14%;
     border: 1px solid #ccc;
-    overflow: hidden; /* Hide overflow to achieve scrolling effect */
-    white-space: nowrap; /* Prevent text wrapping */
-    position: relative; /* Position relative for child */
-    height: 18px; /* Fixed height for the container */
+    overflow: hidden; 
+    white-space: nowrap; 
+    position: relative; 
+    height: 18px; 
 }
 
 .scrolling-comments {
-    display: inline-block; /* Align items in a line */
-    animation: scroll 30s linear infinite; /* Slowed down the scrolling */
+    display: inline-block;
+    animation: scroll 30s linear infinite;
 }
 
-/* Keyframes for scrolling effect */
 @keyframes scroll {
     0% {
-        transform: translateX(0); /* Start at the left */
+        transform: translateX(0);
     }
     100% {
-        transform: translateX(-50%); /* Move to the left off the screen */
+        transform: translateX(-50%);
     }
 }
 
-/* Adding spacing between comments */
 .spacing {
-    display: inline-block; /* Make it occupy space */
-    width: 40px; /* Adjust width for spacing */
+    display: inline-block; 
+    width: 40px;
 }

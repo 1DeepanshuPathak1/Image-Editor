@@ -21,9 +21,9 @@ function App() {
             <Menu isOpen={isMenuOpen} toggleMenu={toggleMenu} isSignedIn={isSignedIn} setIsSignedIn={setIsSignedIn} />
 
             <Routes>
-                <Route path="/" element={<Home />} />
+                <Route path="/" element={<Home />} state={{ from: '/' }}/>
                 <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" state={{ from: '/edit' }}/>} />
-                <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} /> {/* Sign-in route */}
+                <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} /> 
                 <Route path="/signup" element={<SignUp setIsSignedIn={setIsSignedIn} />} />
             </Routes>
         </div>

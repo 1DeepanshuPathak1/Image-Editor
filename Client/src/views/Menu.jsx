@@ -1,20 +1,20 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import '../css/Menu.css'; // Assuming your CSS is here
+import '../css/Menu.css'; 
 
 function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn }) {
-    const navigate = useNavigate(); // Hook to programmatically navigate
+    const navigate = useNavigate();
 
     const handleSignIn = () => {
-        toggleMenu(); // Close the menu
-        navigate('/signin'); // Redirect to the sign-in page
+        toggleMenu();
+        navigate('/signin'); 
     };
 
     const handleSignOut = () => {
         const confirmSignOut = window.confirm("Are you sure you want to sign out?");
         if (confirmSignOut) {
-            setIsSignedIn(false); // Logic to sign out the user
-            toggleMenu(); // Close the menu
+            setIsSignedIn(false); 
+            toggleMenu(); 
             navigate('/');
         }
     };
@@ -28,7 +28,6 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn }) {
                 <li>
                     <Link to="/edit">Edit</Link>
                 </li>
-                {/* Add Login / Sign Up button */}
                 <li>
                     {isSignedIn ? (
                         <button onClick={handleSignOut}>Sign Out</button>

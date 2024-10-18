@@ -316,14 +316,14 @@ img {
     top: 20px;
     left: 20px;
     margin-bottom: 20px;
-    background-color: rgba(0, 0, 0, 1); /* Button color */
-    color: white; /* Text color */
-    border: none; /* No border */
-    padding: 10px 15px; /* Padding */
-    cursor: pointer; /* Pointer cursor */
+    background-color: rgba(0, 0, 0, 1);
+    color: white;
+    border: none;
+    padding: 10px 15px; 
+    cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.5s ease; 
-    z-index: 1001; /* Above menu */
+    z-index: 1001;
 }
 .menu-button:hover{
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);

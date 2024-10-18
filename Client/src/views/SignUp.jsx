@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../css/signin.css'; 
+import '../css/signin.css'; // Reusing the same CSS
 
 function SignUp({ setIsSignedIn }) {
     const [formData, setFormData] = useState({
@@ -12,6 +12,7 @@ function SignUp({ setIsSignedIn }) {
         dateOfBirth: ''
     });
 
+    const [errorMessage, setErrorMessage] = useState('');
     const [showMessage, setShowMessage] = useState(false);
 
     const handleChange = (e) => {
@@ -22,22 +23,38 @@ function SignUp({ setIsSignedIn }) {
         }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         // Password match validation
         if (formData.password !== formData.confirmPassword) {
-            alert("Passwords do not match!");
+            setErrorMessage("Passwords do not match!");
             return;
         }
 
-        // Show success message
-        setShowMessage(true);
+        try {
+            // Send user data to the backend
+            const response = await fetch('http://localhost:3000/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
 
-        // Redirect to sign-in page after 2 seconds
-        setTimeout(() => {
-            window.location.href = "/signin";
-        }, 2000);
+            const data = await response.json();
+
+            if (response.status === 201) {
+                // Show success message and redirect to sign-in page
+                setShowMessage(true);
+                setTimeout(() => {
+                    window.location.href = "/signin";
+                }, 2000);
+            } else {
+                setErrorMessage(data.message || 'Sign-up failed');
+            }
+        } catch (error) {
+            console.error(error);
+            setErrorMessage('An error occurred. Please try again.');
+        }
     };
 
     return (
@@ -105,14 +122,17 @@ function SignUp({ setIsSignedIn }) {
                 <p>
                     Already have an account? <a href="/signin">Sign In</a>
                 </p>
-            </div>
 
-            {/* Custom Success Message */}
-            {showMessage && (
-                <div className="success-message">
-                    Sign-up successful! Redirecting to Sign In page...
-                </div>
-            )}
+                {/* Error Message */}
+                {errorMessage && <div className="error-message">{errorMessage}</div>}
+
+                {/* Success Message */}
+                {showMessage && (
+                    <div className="success-message">
+                        Sign-up successful! Redirecting to Sign In page...
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

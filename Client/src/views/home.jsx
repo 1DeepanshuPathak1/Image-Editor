@@ -1,5 +1,5 @@
 import React from 'react';
-import '../css/home.css'; // Importing CSS for styling
+import '../css/home.css'; 
 
 const comments = [
     "This is the best image editor I've ever used!",
