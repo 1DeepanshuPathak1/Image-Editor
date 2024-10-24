@@ -328,3 +328,30 @@ img {
 .menu-button:hover{
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
 }
+
+.resize-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.dimension-selection {
+    margin: 20px 0;
+}
+
+.image-container {
+    width: 800px; /* Fixed width for the container */
+    height: 600px; /* Fixed height for the container */
+    overflow: hidden; /* Prevents the image from exceeding the container */
+    border: 2px solid #ccc; /* Optional: Add a border for visibility */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative; /* Allows positioning of the image */
+}
+
+.resized-image {
+    max-width: 100%; /* Ensures the image doesn't exceed container width */
+    max-height: 100%; /* Ensures the image doesn't exceed container height */
+    object-fit: contain; /* Keeps aspect ratio and prevents overflow */
+}

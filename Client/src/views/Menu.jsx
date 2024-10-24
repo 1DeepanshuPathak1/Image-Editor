@@ -29,6 +29,9 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn }) {
                     <Link to="/edit">Edit</Link>
                 </li>
                 <li>
+                    <Link to="/resize-image">Resize Image</Link> {/* Added Resize Image link */}
+                </li>
+                <li>
                     {isSignedIn ? (
                         <button onClick={handleSignOut}>Sign Out</button>
                     ) : (

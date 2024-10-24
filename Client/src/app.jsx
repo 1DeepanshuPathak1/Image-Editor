@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import EditPage from './views/EditPage';
-import Home from './views/home';
+import Home from './views/Home';
 import Menu from './views/Menu';
 import SignIn from './views/SignIn';
+import ResizeImagePage from './views/Resize'; // Import the new ResizeImagePage
 import './css/index.css';
 import SignUp from './views/SignUp';
 
@@ -21,9 +22,10 @@ function App() {
             <Menu isOpen={isMenuOpen} toggleMenu={toggleMenu} isSignedIn={isSignedIn} setIsSignedIn={setIsSignedIn} />
 
             <Routes>
-                <Route path="/" element={<Home />} state={{ from: '/' }}/>
-                <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" state={{ from: '/edit' }}/>} />
-                <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} /> 
+                <Route path="/" element={<Home />} state={{ from: '/' }} />
+                <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" state={{ from: '/edit' }} />} />
+                <Route path="/resize-image" element={<ResizeImagePage />} /> {/* New route for ResizeImagePage */}
+                <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} />
                 <Route path="/signup" element={<SignUp setIsSignedIn={setIsSignedIn} />} />
             </Routes>
         </div>

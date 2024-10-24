@@ -29,16 +29,14 @@ app.post('/signin', SignIn);
 app.post('/upload', upload.single('image'), UploadPost);
 app.get('/edit/:filterType', FilterRequest);
 
-// New route for resizing images
+// resize image
 app.post('/resize-image', upload.single('image'), (req, res) => {
-    const { width, height } = req.body; // Ensure width and height are sent in the request body
+    const { width, height } = req.body; 
     const tempInputPath = path.join(__dirname, 'uploads', 'temp_image.png');
 
-    // Write the uploaded image buffer to a temporary file for processing
     const fs = require('fs');
-    fs.writeFileSync(tempInputPath, req.file.buffer); // Write buffer to file
+    fs.writeFileSync(tempInputPath, req.file.buffer); 
 
-    // Spawn the Python script
     const pythonProcess = spawn('python', ['image_edit.py', tempInputPath, width, height]);
 
     pythonProcess.stdout.on('data', (data) => {
@@ -54,14 +52,14 @@ app.post('/resize-image', upload.single('image'), (req, res) => {
         if (code !== 0) {
             return res.status(500).json({ message: 'Error resizing image.' });
         }
-        res.download('uploads/resized_image.png', 'resized_image.png'); // Send the resized image as response
+        res.download('uploads/resized_image.png', 'resized_image.png'); 
     });
 });
 
 // Serve static React files
 app.use(express.static(path.join(__dirname, '..', 'Client', 'dist')));
 
-// Catch-all route to serve React's index.html for client-side routing
+// Catch-all route to do client side rendering 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'Client','dist', 'index.html'));
 });
