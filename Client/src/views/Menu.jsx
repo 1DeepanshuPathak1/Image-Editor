@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import '../css/Menu.css'; 
 
-function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn }) {
+function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
     const navigate = useNavigate();
 
     const handleSignIn = () => {
@@ -29,6 +29,9 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn }) {
                     <Link to="/edit">Edit</Link>
                 </li>
                 <li>
+                    <Link to="/resize-image">Resize Image</Link>
+                </li>
+                <li>
                     {isSignedIn ? (
                         <button onClick={handleSignOut}>Sign Out</button>
                     ) : (
@@ -36,6 +39,9 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn }) {
                     )}
                 </li>
             </ul>
+            <div className="menu-footer">
+                <button onClick={toggleTheme}>Toggle Theme</button>
+            </div>
         </div>
     );
 }
