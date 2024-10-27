@@ -1,25 +1,31 @@
-from flask import Flask, request, jsonify
+import sys
 from PIL import Image
-import io
+import base64
 
-app = Flask(__name__)
+def resize_image(image_path, width, height):
+    # Open an image file
+    with Image.open(image_path) as img:
+        # Resize image
+        img = img.resize((int(width), int(height)))
 
-@app.route('/resize', methods=['POST'])
-def resize_image():
-    if 'image' not in request.files:
-        return "No file uploaded.", 400
+        # Save the resized image to a temporary file
+        output_path = 'resized_image.png'  # Change this to your desired output path
+        img.save(output_path)
 
-    file = request.files['image']
-    width = int(request.form['width'])
-    height = int(request.form['height'])
+        # Return the base64 string of the resized image
+        with open(output_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            return encoded_string
 
-    image = Image.open(file.stream)
-    resized_image = image.resize((width, height))
-    img_byte_arr = io.BytesIO()
-    resized_image.save(img_byte_arr, format='PNG')
-    img_byte_arr.seek(0)
+if __name__ == "__main__":
+    if len(sys.argv) < 4:
+        print("Not enough arguments. Provide image path, width, and height.")
+        sys.exit(1)
+
+    image_path = sys.argv[1]
+    width = sys.argv[2]
+    height = sys.argv[3]
     
-    return jsonify({'resizedImage': f"data:image/png;base64,{base64.b64encode(img_byte_arr.getvalue()).decode()}"})
-
-if __name__ == '__main__':
-    app.run(port=3001)
+    # Call the resize function and print the base64 string
+    resized_image = resize_image(image_path, width, height)
+    print(resized_image)

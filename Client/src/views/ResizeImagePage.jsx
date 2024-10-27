@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import "../css/ResizeImagePage.css"
+import "../css/ResizeImagePage.css";
 
 const ResizeImagePage = () => {
     const [image, setImage] = useState(null);
@@ -23,37 +23,39 @@ const ResizeImagePage = () => {
         e.preventDefault();
         const fileInput = document.querySelector('input[type="file"]');
         const file = fileInput.files[0];
-
+    
         if (!file) {
             setError('Please upload an image first.');
             return;
         }
-
+    
         const formData = new FormData();
         formData.append('image', file);
-
+    
         const widthValue = width || document.getElementById('widthInput').value;
         const heightValue = height || document.getElementById('heightInput').value;
-
+    
         try {
             const response = await fetch(`http://localhost:3000/resize?width=${widthValue}&height=${heightValue}`, {
                 method: 'POST',
                 body: formData,
             });
-
+    
             if (!response.ok) {
                 throw new Error(`Error: ${response.status}`);
             }
-
-            const resizedImageBlob = await response.blob();
-            const imageUrl = URL.createObjectURL(resizedImageBlob);
-            setResizedImage(imageUrl);
-            setError('');
+    
+            const data = await response.json(); // Get the JSON response
+            const resizedImageSrc = `data:image/png;base64,${data.resizedImage}`; // Format the base64 string
+    
+            setResizedImage(resizedImageSrc); // Update the state with the resized image source
+            setError(''); // Clear any previous errors
         } catch (error) {
             console.error('Error resizing image:', error);
             setError('Error resizing image. Please try again.');
         }
     };
+    
 
     return (
         <div className="resize-image-container">
