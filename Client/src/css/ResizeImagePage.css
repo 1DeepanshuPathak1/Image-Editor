@@ -15,13 +15,13 @@ h2 {
 }
 
 .image-box-container {
-    display: flex; 
+    display: flex;
     justify-content: center;
     gap: 20px;
 }
 
 .image-box {
-    text-align: center; 
+    text-align: center;
 }
 
 .image {
@@ -33,8 +33,7 @@ h2 {
     margin: 20px 0;
 }
 
-.resize-options,
-.compression-options {
+.resize-options{
     margin: 10px 0;
 }
 
@@ -49,8 +48,8 @@ input[type="number"] {
     z-index: 100;
 }
 
-input[type="file"]{
-    
+input[type="file"] {
+
     margin-bottom: 10px;
     padding: 10px;
     border: 2px solid black;
@@ -100,12 +99,12 @@ select {
 
 .uploaded-image,
 .resized-image {
-    max-width: auto; 
+    max-width: auto;
     height: auto;
     border: 2px solid #ddd;
     border-radius: 10px;
     padding: 5px;
-    transition: box-shadow 0.5s ease; 
+    transition: box-shadow 0.5s ease;
     position: relative;
     z-index: 10;
 }
@@ -150,10 +149,80 @@ select {
 }
 
 .image-title {
-    color: white; /* Set text color */
-    font-size: 1.5em; /* Adjust font size */
-    margin-bottom: 10px; /* Space between title and image */
-    text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.7); /* Optional shadow for better visibility */
+    color: white;
+    /* Set text color */
+    font-size: 1.5em;
+    /* Adjust font size */
+    margin-bottom: 10px;
+    /* Space between title and image */
+    text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.7);
+    /* Optional shadow for better visibility */
     z-index: 1000;
     position: relative;
+}
+
+.download-options {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.download-options input[type="number"] {
+    width: 150px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #2f2f2f;
+    color: #ffffff;
+}
+
+.download-options select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #2f2f2f;
+    color: #ffffff;
+}
+
+.DownloadButton {
+    background-color: black;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.5s ease;
+}
+
+.DownloadButton:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+}
+
+.compression-options {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.compression-options input[type="number"],
+.compression-options select {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #2f2f2f;
+    color: #ffffff;
+}
+
+.compression-options input[type="number"] {
+    width: 150px;
+}
+
+.compression-options p {
+    margin: 0;
+    font-size: 14px;
 }

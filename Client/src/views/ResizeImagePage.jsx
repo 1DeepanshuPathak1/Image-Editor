@@ -7,6 +7,9 @@ const ResizeImagePage = () => {
     const [width, setWidth] = useState('');
     const [height, setHeight] = useState('');
     const [error, setError] = useState('');
+    const [targetSize, setTargetSize] = useState('');
+    const [imageFormat, setImageFormat] = useState('png');
+    const [actualSize, setActualSize] = useState(null);
 
     const handleImageUpload = (event) => {
         const file = event.target.files[0];
@@ -34,9 +37,10 @@ const ResizeImagePage = () => {
     
         const widthValue = width || document.getElementById('widthInput').value;
         const heightValue = height || document.getElementById('heightInput').value;
+        const sizeValue = targetSize || '0'; // Use 0 if not specified
     
         try {
-            const response = await fetch(`http://localhost:3000/resize?width=${widthValue}&height=${heightValue}`, {
+            const response = await fetch(`http://localhost:3000/resize?width=${widthValue}&height=${heightValue}&size=${sizeValue}&format=${imageFormat}`, {
                 method: 'POST',
                 body: formData,
             });
@@ -45,17 +49,28 @@ const ResizeImagePage = () => {
                 throw new Error(`Error: ${response.status}`);
             }
     
-            const data = await response.json(); // Get the JSON response
-            const resizedImageSrc = `data:image/png;base64,${data.resizedImage}`; // Format the base64 string
+            const data = await response.json();
+            const resizedImageSrc = `data:image/${imageFormat};base64,${data.resizedImage}`;
     
-            setResizedImage(resizedImageSrc); // Update the state with the resized image source
-            setError(''); // Clear any previous errors
+            setResizedImage(resizedImageSrc);
+            setActualSize(parseFloat(data.actualSize)); // Make sure to parse the actualSize to a number
+            setError('');
         } catch (error) {
             console.error('Error resizing image:', error);
             setError('Error resizing image. Please try again.');
         }
     };
-    
+
+    const handleDownload = () => {
+        if (resizedImage) {
+            const link = document.createElement('a');
+            link.href = resizedImage;
+            link.download = `resized_image.${imageFormat}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
 
     return (
         <div className="resize-image-container">
@@ -104,6 +119,31 @@ const ResizeImagePage = () => {
                         <div className="image-title">Resized Image</div>
                         <img src={resizedImage} alt="Resized" className="image resized-image" />
                     </div>
+                )}
+            </div>
+            <div className="compression-options">
+                <input
+                    type="number"
+                    value={targetSize}
+                    onChange={(e) => setTargetSize(e.target.value)}
+                    placeholder="Max file size (KB)"
+                />
+                <select
+                    value={imageFormat}
+                    onChange={(e) => setImageFormat(e.target.value)}
+                >
+                    <option value="png">PNG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="gif">GIF</option>
+                    <option value="webp">WebP</option>
+                </select>
+                {resizedImage && (
+                    <>
+                        <button onClick={handleDownload} className="DownloadButton">
+                            Download
+                        </button>
+                        <p>Actual size: {actualSize.toFixed(2)} KB</p>
+                    </>
                 )}
             </div>
         </div>
