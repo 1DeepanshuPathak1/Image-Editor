@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../css/signin.css'; // Reusing the same CSS
+import '../css/signin.css';
 
 function SignUp({ setIsSignedIn }) {
     const [formData, setFormData] = useState({
@@ -25,15 +25,12 @@ function SignUp({ setIsSignedIn }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Password match validation
         if (formData.password !== formData.confirmPassword) {
             setErrorMessage("Passwords do not match!");
             return;
         }
 
         try {
-            // Send user data to the backend
             const response = await fetch('http://localhost:3000/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -43,7 +40,6 @@ function SignUp({ setIsSignedIn }) {
             const data = await response.json();
 
             if (response.status === 201) {
-                // Show success message and redirect to sign-in page
                 setShowMessage(true);
                 setTimeout(() => {
                     window.location.href = "/signin";
@@ -122,11 +118,7 @@ function SignUp({ setIsSignedIn }) {
                 <p>
                     Already have an account? <a href="/signin">Sign In</a>
                 </p>
-
-                {/* Error Message */}
                 {errorMessage && <div className="error-message">{errorMessage}</div>}
-
-                {/* Success Message */}
                 {showMessage && (
                     <div className="success-message">
                         Sign-up successful! Redirecting to Sign In page...

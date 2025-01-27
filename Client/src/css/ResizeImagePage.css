@@ -9,8 +9,7 @@
     overflow: hidden;
 }
 
-h1,
-h2 {
+.resize-image-container h1 {
     color: white;
 }
 
@@ -19,7 +18,18 @@ h2 {
     justify-content: center;
     gap: 20px;
 }
-
+#widthInput{
+    color: #666;
+    background-color: #121212;
+}
+#heightInput{
+    background-color: #121212;
+    color: #666;
+}
+#presetSelect{
+    color: #666;
+    background-color: #121212;
+}
 .image-box {
     text-align: center;
 }
@@ -107,22 +117,15 @@ select {
     transition: box-shadow 0.5s ease;
     position: relative;
     z-index: 10;
+    background-color: #2f2f2f;
 }
 
-.uploaded-image:hover {
+.uploaded-image:hover,.resized-image:hover {
     box-shadow:
         0 -200px 300px rgba(0, 255, 0, 0.1),
         0 50px 300px rgba(0, 255, 0, 0.5),
         0 0 300px rgba(0, 255, 0, 0.6);
     z-index: 0;
-}
-
-.resized-image:hover {
-    box-shadow:
-        0 -200px 300px rgba(0, 255, 0, 0.1),
-        0 50px 300px rgba(0, 255, 0, 0.5),
-        0 0 300px rgba(0, 255, 0, 0.6);
-    z-index: 1;
 }
 
 
@@ -150,13 +153,9 @@ select {
 
 .image-title {
     color: white;
-    /* Set text color */
     font-size: 1.5em;
-    /* Adjust font size */
     margin-bottom: 10px;
-    /* Space between title and image */
     text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.7);
-    /* Optional shadow for better visibility */
     z-index: 1000;
     position: relative;
 }
@@ -201,7 +200,7 @@ select {
 }
 
 .compression-options {
-    margin-top: 20px;
+    padding-top: 20px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -211,7 +210,9 @@ select {
 
 .compression-options input[type="number"],
 .compression-options select {
-    padding: 10px;
+    width: auto;
+    height: auto;
+    margin: 0;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: #2f2f2f;

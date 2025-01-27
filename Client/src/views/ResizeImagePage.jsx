@@ -37,10 +37,17 @@ const ResizeImagePage = () => {
     
         const widthValue = width || document.getElementById('widthInput').value;
         const heightValue = height || document.getElementById('heightInput').value;
-        const sizeValue = targetSize || '0'; // Use 0 if not specified
+        
+        // Build the URL with required parameters
+        let url = `http://localhost:3000/resize?width=${widthValue}&height=${heightValue}&format=${imageFormat}`;
+        
+        // Only add size parameter if targetSize is provided
+        if (targetSize) {
+            url += `&size=${targetSize}`;
+        }
     
         try {
-            const response = await fetch(`http://localhost:3000/resize?width=${widthValue}&height=${heightValue}&size=${sizeValue}&format=${imageFormat}`, {
+            const response = await fetch(url, {
                 method: 'POST',
                 body: formData,
             });
@@ -53,7 +60,7 @@ const ResizeImagePage = () => {
             const resizedImageSrc = `data:image/${imageFormat};base64,${data.resizedImage}`;
     
             setResizedImage(resizedImageSrc);
-            setActualSize(parseFloat(data.actualSize)); // Make sure to parse the actualSize to a number
+            setActualSize(parseFloat(data.actualSize));
             setError('');
         } catch (error) {
             console.error('Error resizing image:', error);
@@ -92,6 +99,7 @@ const ResizeImagePage = () => {
                     placeholder="Height"
                 />
                 <select
+                    id="presetSelect"
                     onChange={(e) => {
                         const [w, h] = e.target.value.split('x');
                         setWidth(w);
@@ -126,7 +134,7 @@ const ResizeImagePage = () => {
                     type="number"
                     value={targetSize}
                     onChange={(e) => setTargetSize(e.target.value)}
-                    placeholder="Max file size (KB)"
+                    placeholder="Optional: Max file size (KB)"
                 />
                 <select
                     value={imageFormat}

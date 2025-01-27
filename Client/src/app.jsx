@@ -5,8 +5,8 @@ import Home from './views/Home';
 import Menu from './views/Menu';
 import SignIn from './views/SignIn';
 import SignUp from './views/SignUp';
-import ResizeImagePage from './views/ResizeImagePage'; // Import the ResizeImagePage component
-import './css/index.css';
+import ResizeImagePage from './views/ResizeImagePage';
+import './css/EditPage.css';
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
@@ -31,7 +31,7 @@ function App() {
                 <Route path="/edit" element={isSignedIn ? <EditPage /> : <Navigate to="/signin" state={{ from: '/edit' }} />} />
                 <Route path="/signin" element={<SignIn setIsSignedIn={setIsSignedIn} />} />
                 <Route path="/signup" element={<SignUp setIsSignedIn={setIsSignedIn} />} />
-                <Route path="/resize-image" element={<ResizeImagePage />} />
+                <Route path="/resize-image" element={isSignedIn?<ResizeImagePage /> : <Navigate to="/signin" state={{from:'/resize-image'}} />} />
             </Routes>
         </div>
     );

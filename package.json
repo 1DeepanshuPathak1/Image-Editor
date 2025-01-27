@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.1.1",
+    "mongod": "^2.0.0",
     "react-router-dom": "^6.27.0"
   }
 }

@@ -36,7 +36,7 @@ html, body {
 .form-container {
     width: 380px;
     padding: 20px;
-    background: rgba(255, 255, 255, 0.8);
+    background: #0f0f0f;
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 1s ease;
@@ -44,16 +44,16 @@ html, body {
 
 .form-container:hover {
     box-shadow:
-        10px 10px 20px rgba(0, 255, 0, 0.5),
-        -10px -10px 20px rgba(0, 255, 0, 0.4),
-        0px 0px 100px rgba(0, 255, 0, 0.3);
+        10px 10px 80px rgba(0, 255, 0, 0.4),
+        -10px -10px 80px rgba(0, 255, 0, 0.3),
+        0px 0px 150px rgba(0, 255, 0, 0.2);
 }
 
 
 h2 {
     text-align: center;
     margin-bottom: 20px;
-    color: #333;
+    color: rgba(255,255,255,0.9);
 }
 
 
@@ -64,6 +64,8 @@ h2 {
     padding: 0 10px;
     border: 1px solid #ccc;
     border-radius: 5px;
+    background-color: #121212 !important;
+    color: white;
 }
 
 .signin-container button {
@@ -80,17 +82,13 @@ h2 {
     transition: box-shadow 0.5s ease;
 }
 
-.signin-container button:hover {
-    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
-}
-
 
 .signin-container p {
-    text-align: center;
     margin-top: 15px;
 }
 
 .signin-container p a {
+    padding-left: 10px;
     color: rgb(0, 110, 255);
     text-decoration: underline;
 }
@@ -118,12 +116,51 @@ h2 {
 }
 
 .redirect-message {
-    color: red; 
-    text-align: center;
+    color: rgb(255, 0, 0,0.9) ; 
+    text-align: center ;
     margin-bottom: 15px;
 }
 
 .error-message{
-    color: red;
+    color: rgb(255, 0, 0,0.9) ;
+}
+#AltPrompt{
+    color: rgb(255, 255, 255,0.8);
+}
+.input-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.PasswordIcon{
+    position: absolute;
+    left: 90%;
+    top: 20%;
+    display: flex;
+    color: #666;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+.MailIcon{
+    position: absolute;
+    left: 90%;
+    top: 20%;
+    display: flex;
+    color: #666;
+    font-size: 1.2em;
+}
+input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #121212 inset; 
+    -webkit-text-fill-color: white; 
+    border: 1px solid #ccc; 
 }
 
+input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #121212 inset; 
+    -webkit-text-fill-color: white;
+}
+
+input:-webkit-autofill:hover {
+    -webkit-box-shadow: 0 0 0 1000px #121212 inset;
+    -webkit-text-fill-color: white;
+}
