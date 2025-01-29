@@ -1,8 +1,10 @@
 const { spawn } = require('child_process');
+const path = require('path');
 
 function Filter(buffers,type,rotate,intense){
     return new Promise((resolve, reject) => {
-        const pythonProcess = spawn('python', ['image_edit.py', type, rotate.toString(), intense.toString()]);
+        const pythonScriptPath = path.join(__dirname, '..', 'PythonScripts', 'image_edit.py');
+        const pythonProcess = spawn('python', [pythonScriptPath, type, rotate.toString(), intense.toString()]);
         
         pythonProcess.stdin.write(buffers);
         pythonProcess.stdin.end();

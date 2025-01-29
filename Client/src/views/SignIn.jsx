@@ -41,14 +41,19 @@ function SignIn({ setIsSignedIn }) {
             const from = location.state?.from || '/';
             navigate(from);
         } catch (error) {
-            console.error('Sign-in Request Error:', error); 
+            console.error('Sign-in Request Error:', error);
             setErrorMessage('Something went wrong. Please try again later.');
         }
     };
+    const handleGoogleLogin = () => {
+        window.location.href = 'http://localhost:3000/auth/google';
+    };
+
 
     const redirectMessages = {
-        '/edit': 'You must sign in to access the Edit page.',
-        '/resize-image': 'You must sign in to access the Image Resize page.'
+        '/edit': 'You must sign in to access the Edit feature.',
+        '/resize-image': 'You must sign in to access the Image Resize feature.',
+        '/enhance': 'You must sign in to access the Image Enhance feature.',
     };
 
     const redirectMessage = redirectMessages[location.state?.from] || '';
@@ -81,7 +86,7 @@ function SignIn({ setIsSignedIn }) {
                             onChange={handleChange}
                             required
                         />
-                        <FontAwesomeIcon 
+                        <FontAwesomeIcon
                             icon={showPassword ? faEyeSlash : faEye}
                             className="PasswordIcon"
                             onClick={() => setShowPassword((prev) => !prev)}
@@ -90,6 +95,13 @@ function SignIn({ setIsSignedIn }) {
 
                     <button type="submit">Sign In</button>
                 </form>
+
+                <button
+                    onClick={handleGoogleLogin}
+                    className="google-signin-button"
+                    type="button"
+                >Sign in with Google
+                </button>
 
                 {errorMessage && <p className="error-message">{errorMessage}</p>}
 

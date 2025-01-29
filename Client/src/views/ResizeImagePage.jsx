@@ -8,7 +8,7 @@ const ResizeImagePage = () => {
     const [height, setHeight] = useState('');
     const [error, setError] = useState('');
     const [targetSize, setTargetSize] = useState('');
-    const [imageFormat, setImageFormat] = useState('png');
+    const [imageFormat, setImageFormat] = useState('jpeg');
     const [actualSize, setActualSize] = useState(null);
 
     const handleImageUpload = (event) => {
@@ -16,7 +16,13 @@ const ResizeImagePage = () => {
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setImage(reader.result);
+                const img = new Image();
+                img.onload = () => {
+                    setWidth(img.naturalWidth.toString());
+                    setHeight(img.naturalHeight.toString());
+                    setImage(reader.result);
+                };
+                img.src = reader.result;
             };
             reader.readAsDataURL(file);
         }

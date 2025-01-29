@@ -12,6 +12,8 @@ function EditPage() {
     const [filterType, setFilterType] = useState(null);
     const [intensity, setIntensity] = useState(50);
     const [showSlider, setShowSlider] = useState(false);
+    const [selectedFilter, setSelectedFilter] = useState(null);
+
 
     const filtersWithIntensity = ['blur', 'brightness', 'contrast', 'vignette', 'sepia'];
     const filters = ['greyscale', 'blackwhite', ...filtersWithIntensity, 'invert', 'edge', 'rotate'];
@@ -57,6 +59,8 @@ function EditPage() {
             setEditedImage(base64Image);
             setHistory((prev) => [...prev, base64Image]);
             setMessage('Changes applied! Click "Save" to save the current changes.');
+            setSelectedFilter(null);
+            setShowSlider(false);
         } catch {
             console.error('Error during editing:');
         }
@@ -64,10 +68,16 @@ function EditPage() {
 
     const handleFilterSelection = (filter) => {
         setFilterType(filter);
-        setShowSlider(filtersWithIntensity.includes(filter));
-        if (!filtersWithIntensity.includes(filter)) handleEdit(filter);
+        if (filtersWithIntensity.includes(filter)) {
+            setSelectedFilter(filter);
+            setShowSlider(true);
+            setIntensity(50);
+        } else {
+            setSelectedFilter(null);
+            setShowSlider(false);
+            handleEdit(filter);
+        }
     };
-
     const handleUndo = () => {
         if (history.length > 1) {
             const newHistory = [...history];
@@ -143,8 +153,9 @@ function EditPage() {
                 <>
                     <div className="edits-button-container">
                         {filters.map((filter) => (
-                            <button key={filter} className="action-button" onClick={() => handleFilterSelection(filter)}>
-                                {filter}
+                            <button
+                                key={filter} className={`action-button ${selectedFilter === filter ? 'selected' : ''}`} onClick={() => handleFilterSelection(filter)}
+                            >{filter}
                             </button>
                         ))}
                     </div>

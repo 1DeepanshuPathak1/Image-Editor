@@ -7,7 +7,7 @@
     background: #101010;
     color: white; 
     transition: left 0.3s ease;
-    z-index: 1000; 
+    z-index: 2000; 
 }
 
 .menu.open {

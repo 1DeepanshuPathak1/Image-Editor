@@ -32,6 +32,9 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
                     <Link to="/resize-image">Resize Image</Link>
                 </li>
                 <li>
+                    <Link to="/upscale">Image Enhancer</Link>
+                </li>
+                <li>
                     {isSignedIn ? (
                         <button onClick={handleSignOut}>Sign Out</button>
                     ) : (
