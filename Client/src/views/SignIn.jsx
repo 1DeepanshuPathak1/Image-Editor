@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { LoginButtons } from '../../utils/components/ui/LoginButtons';
+import PixelCard from '../../utils/components/ui/PixelCard';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash, faEnvelope } from '@fortawesome/free-solid-svg-icons';
 import '../css/signin.css';
@@ -45,67 +47,72 @@ function SignIn({ setIsSignedIn }) {
             setErrorMessage('Something went wrong. Please try again later.');
         }
     };
+
     const handleGoogleLogin = () => {
         window.location.href = 'http://localhost:3000/auth/google';
     };
 
-
     const redirectMessages = {
         '/edit': 'You must sign in to access the Edit feature.',
         '/resize-image': 'You must sign in to access the Image Resize feature.',
-        '/enhance': 'You must sign in to access the Image Enhance feature.',
+        '/upscale': 'You must sign in to access the Image Enhance feature.',
     };
 
     const redirectMessage = redirectMessages[location.state?.from] || '';
 
     return (
         <div className="signin-container">
-            <div className="background"></div>
-            <div className="form-container">
-                <h2>Sign In</h2>
-                {redirectMessage && <p className="redirect-message">{redirectMessage}</p>}
-                <form onSubmit={handleSubmit}>
-                    <div className="input-group">
-                        <input
-                            type="email"
-                            name="email"
-                            placeholder="Email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            required
-                        />
-                        <FontAwesomeIcon icon={faEnvelope} className="MailIcon" />
-                    </div>
+            <PixelCard variant="green" className="pixel-background" />
+            <div className="form-wrapper">
+                <div className="form-container">
+                    <h2>Welcome Back</h2>
+                    {redirectMessage && <p className="redirect-message">{redirectMessage}</p>}
+                    <form onSubmit={handleSubmit}>
+                        <div className='input-email-label'>
+                            <label htmlFor="email">Email</label>
+                        </div>
+                        <div className="input-group">
+                            <input
+                                type="email"
+                                name="email"
+                                id="email"
+                                placeholder="Enter your email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                            />
+                            <FontAwesomeIcon icon={faEnvelope} className="MailIcon" />
+                        </div>
 
-                    <div className="input-group">
-                        <input
-                            type={showPassword ? 'text' : 'password'}
-                            name="password"
-                            placeholder="Password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            required
-                        />
-                        <FontAwesomeIcon
-                            icon={showPassword ? faEyeSlash : faEye}
-                            className="PasswordIcon"
-                            onClick={() => setShowPassword((prev) => !prev)}
-                        />
-                    </div>
+                        <div className='input-password-label'>
+                            <label htmlFor="password" >Password</label>
+                        </div>
+                        <div className="input-group">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                name="password"
+                                id="password"
+                                placeholder="Enter your password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                            />
+                            <FontAwesomeIcon
+                                icon={showPassword ? faEyeSlash : faEye}
+                                className="PasswordIcon"
+                                onClick={() => setShowPassword((prev) => !prev)}
+                            />
+                        </div>
 
-                    <button type="submit">Sign In</button>
-                </form>
+                        <button className='SigninButton' type="submit">Sign In</button>
+                    </form>
 
-                <button
-                    onClick={handleGoogleLogin}
-                    className="google-signin-button"
-                    type="button"
-                >Sign in with Google
-                </button>
+                    <LoginButtons onGoogleClick={handleGoogleLogin}></LoginButtons>
 
-                {errorMessage && <p className="error-message">{errorMessage}</p>}
+                    {errorMessage && <p className="error-message">{errorMessage}</p>}
 
-                <p id='AltPrompt'>Don't have an account? <a href="/signup">Create account</a></p>
+                    <p id='AltPrompt'>Don't have an account? <a href="/signup">Sign up</a></p>
+                </div>
             </div>
         </div>
     );

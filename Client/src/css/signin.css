@@ -10,21 +10,19 @@ html, body {
 
 
 .signin-background {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
     background-image: url('../../test.jpg');
     background-size: cover;
     background-position: center;
-    filter: blur(2.5px);
-    z-index: -1;
+    z-index: 1;
 }
-
 
 .signin-container {
     display: flex;
+    top: 0;
+    position: fixed;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -62,35 +60,29 @@ h2 {
     height: 40px;
     margin-bottom: 15px;
     padding: 0 10px;
-    border: 1px solid #ccc;
+    border: 1px solid #232326;
     border-radius: 5px;
     background-color: #121212 !important;
     color: white;
 }
 
-.signin-container button {
-    width: 100%;
-    height: 45px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
-    font-size: 16px;
-    font-weight: bold;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.5s ease;
-}
-
-
 .signin-container p {
     margin-top: 15px;
 }
-
-.signin-container p a {
-    padding-left: 10px;
-    color: rgb(0, 110, 255);
-    text-decoration: underline;
+.SigninButton{
+    background-color: #09090b;
+    color: white;
+    width: 50%;
+    font-size: 16px;
+    font-weight:lighter;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.6s ease;
+    margin-top: 5px;
+}
+.SigninButton:hover {
+    background-color: #27272a;
+    transition: all 0.3s ease;
 }
 
 .success-message {
@@ -112,10 +104,11 @@ h2 {
 
 @keyframes fadeOut {
     0% { opacity: 1; }
+    50% { opacity: 0.5; }
     100% { opacity: 0; }
 }
 
-.redirect-message {
+.redirect-message p{
     color: rgb(255, 0, 0,0.9) ; 
     text-align: center ;
     margin-bottom: 15px;
@@ -124,13 +117,42 @@ h2 {
 .error-message{
     color: rgb(255, 0, 0,0.9) ;
 }
-#AltPrompt{
-    color: rgb(255, 255, 255,0.8);
+.form-container a{
+    padding-left: 10px;
+    color: rgb(255, 255, 255);
+    text-decoration: underline;
+}
+.form-container p{
+    color: rgb(255, 255, 255,0.4);
 }
 .input-group {
     position: relative;
     display: flex;
     align-items: center;
+}
+.input-group #email:focus,
+.input-group #password:focus {
+    outline: none;
+    border: 1px solid #88888b;
+}
+.input-email-label label {
+    position: relative;
+    text-align: left;
+    display: block;
+    color: #666;
+    font-size: 1em;
+    margin-bottom: 5px;
+    margin-left: 5px;
+}
+
+.input-password-label label {
+    position: relative;
+    text-align: left;
+    display: block;
+    color: #666;
+    font-size: 1em;
+    margin-bottom: 5px;
+    margin-left: 5px;
 }
 .PasswordIcon{
     position: absolute;
@@ -149,38 +171,10 @@ h2 {
     color: #666;
     font-size: 1.2em;
 }
-input:-webkit-autofill {
-    -webkit-box-shadow: 0 0 0 1000px #121212 inset; 
-    -webkit-text-fill-color: white; 
-    border: 1px solid #ccc; 
-}
-
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 1000px #121212 inset; 
-    -webkit-text-fill-color: white;
-}
-
-input:-webkit-autofill:hover {
-    -webkit-box-shadow: 0 0 0 1000px #121212 inset;
-    -webkit-text-fill-color: white;
-}
-
-.google-signin-button {
-    display: block;
-    width: 100%;
-    height: 45px;
-    background-color: #4285F4;
-    color: white;
-    font-size: 16px;
-    font-weight: bold;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    line-height: 45px;
-    margin-top: 10px;
-    text-decoration: none;
-}
-
-.google-signin-button:hover {
-    background-color: #357ae8;
+    -webkit-box-shadow: 0 0 0 30px #121212 inset !important;
+    -webkit-text-fill-color: white !important;
+    border-radius: 1px !important;
 }
