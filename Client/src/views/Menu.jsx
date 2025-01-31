@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import AlertDialog from "../../shadcnutils/components/ui/alert-dialog"; 
+import AlertDialog from "../../utils/components/ui/alert-dialog"; 
 import '../css/Menu.css';
 
 function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {

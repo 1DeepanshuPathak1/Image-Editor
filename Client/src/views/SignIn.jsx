@@ -49,7 +49,14 @@ function SignIn({ setIsSignedIn }) {
     };
 
     const handleGoogleLogin = () => {
+        const returnPath = location.state?.from || '/';
+        localStorage.setItem('returnTo',returnPath);
         window.location.href = 'http://localhost:3000/auth/google';
+    };
+    const handleGithubLogin = () => {
+        const returnPath = location.state?.from || '/';
+        localStorage.setItem('returnTo',returnPath);
+        window.location.href = 'http://localhost:3000/auth/github';
     };
 
     const redirectMessages = {
@@ -107,7 +114,7 @@ function SignIn({ setIsSignedIn }) {
                         <button className='SigninButton' type="submit">Sign In</button>
                     </form>
 
-                    <LoginButtons onGoogleClick={handleGoogleLogin}></LoginButtons>
+                    <LoginButtons onGoogleClick={handleGoogleLogin} onGithubClick={handleGithubLogin}> </LoginButtons>
 
                     {errorMessage && <p className="error-message">{errorMessage}</p>}
 

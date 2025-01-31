@@ -4,6 +4,14 @@ const UAParser = require('ua-parser-js');
 const passport = require('passport')
 
 
+const getClientIP = (req) => {
+    return req.headers['x-forwarded-for']?.split(',')[0] 
+        || req.headers['x-real-ip']
+        || req.connection.remoteAddress
+        || req.socket.remoteAddress;
+};
+
+
 async function SignUp(req,res) {
     try {
         const { firstName, middleName, lastName, dateOfBirth, email, password } = req.body;
@@ -58,9 +66,11 @@ async function SignIn(req,res)  {
         await Log.create({
             email,
             ip: userIp,
+            realIP:getClientIP(req),
             browser: userBrowser,
             device: userDevice,
             status: 'success',
+            provider: 'local',
             timestamp: moment().format("DD/MM/YY-HH:mm"),
         });
         res.status(200).json({ message: 'Sign in successful!' });
@@ -71,7 +81,10 @@ async function SignIn(req,res)  {
 }
 
 const GoogleCallback = [
-    passport.authenticate('google', { failureRedirect: '/signin' }),
+    passport.authenticate('google', { 
+        failureRedirect: '/signin',
+        session: true 
+    }),
     async (req, res) => {
         const userIp = req.ip;
         const parser = new UAParser(req.headers['user-agent']);
@@ -80,30 +93,117 @@ const GoogleCallback = [
 
         try {
             if (!req.user) {
+                console.error('Google authentication failed: No user data');
                 await Log.create({
-                    email: req.user?.email || 'unknown',
+                    email: 'unknown',
                     ip: userIp,
                     browser: userBrowser || 'unknown',
                     device: userDevice || 'unknown',
                     status: 'failed',
-                    timestamp: moment().format("DD/MM/YY-HH:mm")
+                    provider: 'google',
+                    timestamp: moment().format("DD/MM/YY-HH:mm"),
+                    error: 'No user data received'
                 });
-                return res.redirect(`${process.env.CLIENT_URL}/signin`);
+                return res.redirect(`${process.env.CLIENT_URL}/signin?error=auth_failed`);
             }
 
             await Log.create({
                 email: req.user.email,
                 ip: userIp,
+                realIP: getClientIP(req),
                 browser: userBrowser || 'unknown',
                 device: userDevice || 'unknown',
                 status: 'success',
-                timestamp: moment().format("DD/MM/YY-HH:mm")
+                provider: 'google',
+                timestamp: moment().format("DD/MM/YY-HH:mm"),
+                userId: req.user._id
             });
 
-            res.redirect(process.env.CLIENT_URL);
+            req.session.user = {
+                id: req.user._id,
+                email: req.user.email,
+                name: req.user.firstName,
+                provider: 'google'
+            };
+            const redirectTo = req.session.returnTo || '/';
+            delete req.session.returnTo;
+            res.redirect(`${process.env.CLIENT_URL}${redirectTo}`);
         } catch (error) {
-            console.error('OAuth Logging Error:', error);
-            res.redirect(`${process.env.CLIENT_URL}/signin`);
+            console.error('Google OAuth Error:', error);
+            await Log.create({
+                email: req.user?.email || 'unknown',
+                ip: userIp,
+                browser: userBrowser || 'unknown',
+                device: userDevice || 'unknown',
+                status: 'error',
+                provider: 'google',
+                timestamp: moment().format("DD/MM/YY-HH:mm"),
+                error: error.message
+            });
+            res.redirect(`${process.env.CLIENT_URL}/signin?error=server_error`);
+        }
+    }
+];
+
+const GitHubCallback = [
+    passport.authenticate('github', { 
+        failureRedirect: '/signin',
+        session: true 
+    }),
+    async (req, res) => {
+        const userIp = req.ip;
+        const parser = new UAParser(req.headers['user-agent']);
+        const userBrowser = parser.getBrowser().name;
+        const userDevice = parser.getDevice().type;
+
+        try {
+            if (!req.user) {
+                console.error('GitHub authentication failed: No user data');
+                await Log.create({
+                    email: 'unknown',
+                    ip: userIp,
+                    browser: userBrowser || 'unknown',
+                    device: userDevice || 'unknown',
+                    status: 'failed',
+                    provider: 'github',
+                    timestamp: moment().format("DD/MM/YY-HH:mm"),
+                    error: 'No user data received'
+                });
+                return res.redirect(`${process.env.CLIENT_URL}/signin?error=auth_failed`);
+            }
+            await Log.create({
+                email: req.user.email,
+                ip: req.ip,
+                realIP: getClientIP(req),
+                browser: userBrowser || 'unknown',
+                device: userDevice || 'unknown',
+                status: 'success',
+                provider: 'github',
+                timestamp: moment().format("DD/MM/YY-HH:mm"),
+                userId: req.user._id
+            });
+            req.session.user = {
+                id: req.user._id,
+                email: req.user.email,
+                name: req.user.firstName,
+                provider: 'github'
+            };
+            const redirectTo = req.session.returnTo || '/';
+            delete req.session.returnTo;
+            res.redirect(`${process.env.CLIENT_URL}${redirectTo}`);
+        } catch (error) {
+            console.error('GitHub OAuth Error:', error);
+            await Log.create({
+                email: req.user?.email || 'unknown',
+                ip: userIp,
+                browser: userBrowser || 'unknown',
+                device: userDevice || 'unknown',
+                status: 'error',
+                provider: 'github',
+                timestamp: moment().format("DD/MM/YY-HH:mm"),
+                error: error.message
+            });
+            res.redirect(`${process.env.CLIENT_URL}/signin?error=server_error`);
         }
     }
 ];
@@ -121,4 +221,4 @@ async function AuthCheck(req, res) {
     }
 }
 
-module.exports = {SignUp,SignIn, GoogleCallback, AuthCheck};
+module.exports = {SignUp,SignIn, GoogleCallback, GitHubCallback, AuthCheck};

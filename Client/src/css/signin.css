@@ -37,7 +37,7 @@ html, body {
     background: #0f0f0f;
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 1s ease;
+    transition: box-shadow 7s ease;
 }
 
 .form-container:hover {

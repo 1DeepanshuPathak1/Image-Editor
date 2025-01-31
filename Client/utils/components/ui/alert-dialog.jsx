@@ -24,7 +24,6 @@ const AlertDialog = ({ isOpen, onClose, onConfirm }) => {
       <style>
         {`
           .dialog-open > *:not(.dialog-container) {
-            filter: blur(4px);
             pointer-events: none;
           }
           .dialog-container {
