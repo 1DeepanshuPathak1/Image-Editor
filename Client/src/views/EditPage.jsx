@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DownloadDialog from '../../utils/components/ui/Download-dialog';
 
 function EditPage() {
     const [selectedFile, setSelectedFile] = useState(null);
@@ -13,6 +14,7 @@ function EditPage() {
     const [intensity, setIntensity] = useState(50);
     const [showSlider, setShowSlider] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState(null);
+    const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
 
     const filtersWithIntensity = ['blur', 'brightness', 'contrast', 'vignette', 'sepia'];
@@ -121,11 +123,11 @@ function EditPage() {
         }
     };
 
-    const handleDownload = () => {
+    const handleDownload = (fileName = 'edited_image.png') => {
         const imageToDownload = EditedImage || imageUrl;
         const link = document.createElement('a');
         link.href = imageToDownload;
-        link.download = 'edited_image.png';
+        link.download = fileName;
         link.click();
     };
 
@@ -143,7 +145,7 @@ function EditPage() {
             {imageUrl && (
                 <div className="image-preview-container">
                     <button className="save-button" onClick={handleSave}>Save</button>
-                    <button className="download-button" onClick={handleDownload}>
+                    <button className="download-button" onClick={() => setIsDownloadDialogOpen(true)}>
                         <i className="fas fa-download"></i>
                     </button>
                     <img src={EditedImage || imageUrl} alt="Uploaded" className="uploaded-image" />
@@ -171,6 +173,14 @@ function EditPage() {
                         <button className="action-buttons" onClick={handleReset}>Original Image</button>
                     </div>
                 </>
+            )}
+            {imageUrl && (
+                <DownloadDialog
+                    isOpen={isDownloadDialogOpen}
+                    onClose={() => setIsDownloadDialogOpen(false)}
+                    imageUrl={EditedImage || imageUrl}
+                    onDownload={handleDownload}
+                />
             )}
         </div>
     );
