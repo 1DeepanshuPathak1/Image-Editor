@@ -20,10 +20,6 @@ app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000
-    }
 }));
 
 // Initialize Passport
@@ -42,10 +38,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Multer configuration
-const upload = multer({ 
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 } 
-});
+const upload = multer({ storage: multer.memoryStorage() });
 
 app.use((req, _res, next) => {
     if (req.query.returnTo) {

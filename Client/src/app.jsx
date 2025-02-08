@@ -8,6 +8,7 @@ import SignUp from './views/SignUp';
 import ResizeImagePage from './views/ResizeImagePage';
 import UpscalePage from './views/UpscalePage';
 import './css/EditPage.css';
+import ColorHarmonyPage from './views/ColorHarmony';
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
@@ -51,6 +52,7 @@ function App() {
                 <Route path="/signup" element={<SignUp setIsSignedIn={setIsSignedIn} />} />
                 <Route path="/resize-image" element={isSignedIn ? <ResizeImagePage /> : <Navigate to="/signin" state={{from:'/resize-image'}} />} />
                 <Route path="/upscale" element={isSignedIn ? <UpscalePage /> : <Navigate to="/signin" state={{from:'/upscale'}} />} />
+                <Route path="/Color-Harmony" element={isSignedIn ? <ColorHarmonyPage/> : <Navigate to="/signin" state={{from:'/Color-Harmony'}}/>}/>
                 <Route path="/auth/google/callback" element={ <Navigate to="/" replace />} />
 
             </Routes>

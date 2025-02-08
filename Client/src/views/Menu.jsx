@@ -40,6 +40,9 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
                         <Link to="/upscale">Image Enhancer</Link>
                     </li>
                     <li>
+                        <Link to="/Color-Harmony">Color Harmony</Link>
+                    </li>
+                    <li>
                         {isSignedIn ? (
                             <button onClick={handleSignOutClick}>Sign Out</button>
                         ) : (

@@ -7,7 +7,7 @@ function EditPage() {
     const [imageUrl, setImageUrl] = useState(null);
     const [EditedImage, setEditedImage] = useState(null);
     const [imageId, setImageId] = useState(null);
-    const [rotationCount, setRotationCount] = useState(0);
+    const [rotationCount, setRotationCount] = useState(2);
     const [history, setHistory] = useState([]);
     const [tempOriginalImage, setTempOriginalImage] = useState(null);
     const [filterType, setFilterType] = useState(null);

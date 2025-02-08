@@ -1,0 +1,237 @@
+.ch-page-container {
+    min-height: 100vh;
+    background-color: #000;
+    padding: 20px;
+    color: #fff;
+}
+
+.ch-content-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.ch-main-card {
+    background-color: #0f0f0f;
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid #1a1a1a;
+}
+
+.ch-page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #fff;
+}
+
+.ch-upload-section {
+    margin-bottom: 30px;
+}
+
+.ch-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.ch-file-input {
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    position: absolute;
+    z-index: -1;
+}
+
+.ch-upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 32px;
+    border: 2px dashed #1a1a1a;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #666;
+}
+
+.ch-upload-area:hover {
+    border-color: #333;
+    color: #888;
+}
+
+.ch-preview-container {
+    position: relative;
+    width: 100%;
+    height: 250px;
+    background-color: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ch-preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.ch-close-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.ch-close-button:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.ch-section-title {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #fff;
+}
+
+.ch-scheme-card {
+    background-color: #1a1a1a;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.ch-scheme-title {
+    color: #fff;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ch-info-icon {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.ch-info-icon:hover {
+    opacity: 1;
+}
+
+.ch-color-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ch-color-swatch-container {
+    position: relative;
+    cursor: pointer;
+}
+
+.ch-color-swatch {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    transition: transform 0.2s;
+}
+
+.ch-color-swatch-container:hover .ch-color-swatch {
+    transform: scale(1.05);
+}
+
+.ch-color-tooltip {
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1a1a1a;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.ch-color-swatch-container:hover .ch-color-tooltip {
+    opacity: 1;
+}
+
+.imagecontainer img {
+    width: 100% !important;
+    height: 100%;
+}
+
+.ch-copy-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.75);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.ch-extracted-colors,
+.ch-suggested-schemes {
+    margin-top: 24px;
+}
+
+.ch-harmonies-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .ch-page-container {
+        padding: 16px;
+    }
+    
+    .ch-color-grid {
+        gap: 6px;
+    }
+    
+    .ch-color-swatch {
+        width: 40px;
+        height: 40px;
+    }
+
+    .ch-harmonies-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}

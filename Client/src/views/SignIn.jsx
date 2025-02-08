@@ -63,6 +63,7 @@ function SignIn({ setIsSignedIn }) {
         '/edit': 'You must sign in to access the Edit feature.',
         '/resize-image': 'You must sign in to access the Image Resize feature.',
         '/upscale': 'You must sign in to access the Image Enhance feature.',
+        '/Color-Harmony':'You must Sign in to access the Color-Harmony finder feature',
     };
 
     const redirectMessage = redirectMessages[location.state?.from] || '';
