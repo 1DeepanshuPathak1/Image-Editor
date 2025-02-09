@@ -12,18 +12,6 @@ input {
     margin-bottom: 10px;
 }
 
-button {
-    padding: 10px 20px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #45a049;
-}
-
 img {
     margin-top: 20px;
     border: 2px solid #ddd;
@@ -88,7 +76,7 @@ img {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     transition: box-shadow 0.5s ease;
     position: relative;
-    z-index: 2;
+    z-index: 2000;
 }
 
 .upload-button:hover {
@@ -102,7 +90,7 @@ img {
     padding: 10px;
     border: 2px solid #666;
     border-radius: 5px;
-    z-index: 2;
+    z-index: 2000;
     position: relative;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
@@ -175,7 +163,7 @@ img {
     padding: 10px;
     border: 2px solid #666;
     margin-bottom: 75px;
-    z-index: 5;
+    z-index: 2000;
 }
 
 .edits-button-containers {
@@ -186,7 +174,7 @@ img {
     padding: 20px;
     border: 2px solid #666;
     margin-top: 10px;
-    z-index: 5;
+    z-index: 2000;
 }
 
 .edits-button-container:hover {
@@ -207,7 +195,7 @@ img {
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.6 s ease;
-    z-index: 4;
+    z-index: 2000;
 }
 
 .action-buttons:hover {
@@ -224,7 +212,7 @@ img {
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.2 ease;
-    z-index: 4;
+    z-index: 2000;
 }
 
 .action-button:hover {
@@ -258,7 +246,7 @@ img {
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 1s ease;
-    z-index: 5;
+    z-index: 100;
 }
 
 .download-button:hover {
@@ -277,7 +265,7 @@ img {
     cursor: pointer;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 1s ease;
-    z-index: 5;
+    z-index: 200;
 }
 
 .save-button:hover {
@@ -328,24 +316,3 @@ img {
 .apply-button:hover {
     box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
 }
-
-.menu-button {
-    position: fixed;
-    width: auto;
-    top: 20px;
-    left: 20px;
-    margin-bottom: 20px;
-    background-color: rgba(0, 0, 0, 1);
-    color: white;
-    border: none;
-    padding: 10px 15px; 
-    cursor: pointer;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.5s ease; 
-    z-index: 2001;
-}
-.menu-button:hover{
-    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
-}
-
-

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import DownloadDialog from '../../utils/components/ui/Download-dialog';
+import '../css/EditPage.css';
 
 function EditPage() {
     const [selectedFile, setSelectedFile] = useState(null);

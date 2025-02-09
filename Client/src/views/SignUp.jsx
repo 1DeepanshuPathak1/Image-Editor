@@ -113,7 +113,7 @@ function SignUp({ setIsSignedIn }) {
                         onChange={handleChange}
                         required
                     />
-                    <button type="submit">Sign Up</button>
+                    <button className="SigninButton"type="submit">Sign Up</button>
                 </form>
                 <p>
                     Already have an account? <a href="/signin">Sign In</a>

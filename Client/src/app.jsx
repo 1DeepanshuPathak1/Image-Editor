@@ -7,8 +7,8 @@ import SignIn from './views/SignIn';
 import SignUp from './views/SignUp';
 import ResizeImagePage from './views/ResizeImagePage';
 import UpscalePage from './views/UpscalePage';
-import './css/EditPage.css';
 import ColorHarmonyPage from './views/ColorHarmony';
+import './css/Menu.css'
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
