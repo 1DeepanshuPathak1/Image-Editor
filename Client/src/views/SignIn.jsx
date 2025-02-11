@@ -64,7 +64,7 @@ function SignIn({ setIsSignedIn }) {
         '/resize-image': 'You must sign in to access the Image Resize feature.',
         '/upscale': 'You must sign in to access the Image Enhance feature.',
         '/Color-Harmony':'You must Sign in to access the Color-Harmony finder feature',
-        '/':"Login using you're email and passowrd",
+        '/song-recommender':'You must Sign in to acess the Song-Recommender Feature',
     };
 
     const redirectMessage = redirectMessages[location.state?.from] || '';

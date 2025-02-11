@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import AlertDialog from "../../utils/components/ui/alert-dialog"; 
+import AlertDialog from "../../utils/components/ui/alert-dialog";
 import '../css/Menu.css';
 
 function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
@@ -28,19 +28,22 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
             <div className={`menu ${isOpen ? 'open' : ''}`}>
                 <ul>
                     <li>
-                        <Link to="/">Home</Link>
+                        <Link to="/" onClick={toggleMenu}>Home</Link>
                     </li>
                     <li>
-                        <Link to="/edit">Edit</Link>
+                        <Link to="/edit" onClick={toggleMenu}>Edit</Link>
                     </li>
                     <li>
-                        <Link to="/resize-image">Resize Image</Link>
+                        <Link to="/resize-image" onClick={toggleMenu}>Resize Image</Link>
                     </li>
                     <li>
-                        <Link to="/upscale">Image Enhancer</Link>
+                        <Link to="/upscale" onClick={toggleMenu}>Image Enhancer</Link>
                     </li>
                     <li>
-                        <Link to="/Color-Harmony">Color Harmony</Link>
+                        <Link to="/Color-Harmony" onClick={toggleMenu}>Color Harmony</Link>
+                    </li>
+                    <li>
+                        <Link to="/song-recommender" onClick={toggleMenu}>Song Recommender</Link>
                     </li>
                     <li>
                         {isSignedIn ? (

@@ -8,6 +8,7 @@ import SignUp from './views/SignUp';
 import ResizeImagePage from './views/ResizeImagePage';
 import UpscalePage from './views/UpscalePage';
 import ColorHarmonyPage from './views/ColorHarmony';
+import SongRecommenderPage from './views/SongRecommender';
 import './css/Menu.css'
 
 function App() {
@@ -54,6 +55,7 @@ function App() {
                 <Route path="/upscale" element={isSignedIn ? <UpscalePage /> : <Navigate to="/signin" state={{from:'/upscale'}} />} />
                 <Route path="/Color-Harmony" element={isSignedIn ? <ColorHarmonyPage/> : <Navigate to="/signin" state={{from:'/Color-Harmony'}}/>}/>
                 <Route path="/auth/google/callback" element={ <Navigate to="/" replace />} />
+                <Route path="/song-recommender" element={isSignedIn ? <SongRecommenderPage /> : <Navigate to="/signin" state={{from:'/song-recommender'}}/>}/>
 
             </Routes>
         </div>
