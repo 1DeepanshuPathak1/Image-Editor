@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, X, Share2, Clock, Heart, Loader } from 'lucide-react';
+import { Upload, X, Share2, Clock, Heart, Loader, RefreshCw } from 'lucide-react';
 import '../css/SongRecommender.css';
 
 const SongRecommenderPage = () => {
@@ -10,6 +10,7 @@ const SongRecommenderPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [imageAnalysis, setImageAnalysis] = useState(null);
+    const [skipCount, setSkipCount] = useState(0);
     const [favorites, setFavorites] = useState(() => {
         try {
             const saved = localStorage.getItem('songFavorites');
@@ -75,7 +76,7 @@ const SongRecommenderPage = () => {
     const handleImageUpload = (event) => {
         const file = event.target.files[0];
         if (file) {
-            if (file.size > 5000000) { 
+            if (file.size > 5000000) {
                 setError('Image size too large. Please choose an image under 5MB.');
                 return;
             }
@@ -131,13 +132,21 @@ const SongRecommenderPage = () => {
                 throw new Error(data.error || 'Failed to get song recommendation');
             }
 
-            if (!data.song) {
-                throw new Error('No song recommendation received');
-            }
-
             setChatResponse(data.description || 'Here\'s a song that matches your image...');
             setSuggestedSong(data.song);
             setImageAnalysis(data.analysis);
+
+            // Add the seed track to the song display
+            if (data.song.seed_track) {
+                const seedTrackInfo = {
+                    ...data.song.seed_track,
+                    isSeedTrack: true
+                };
+                setSuggestedSong(prev => ({
+                    ...prev,
+                    seedTrack: seedTrackInfo
+                }));
+            }
 
             const historyItem = {
                 id: Date.now(),
@@ -145,7 +154,7 @@ const SongRecommenderPage = () => {
                 imageUrl: selectedImage,
                 timestamp: new Date().toISOString()
             };
-            
+
             setHistory(prev => {
                 const newHistory = [historyItem, ...prev].slice(0, maxHistoryItems);
                 return newHistory;
@@ -154,16 +163,53 @@ const SongRecommenderPage = () => {
         } catch (err) {
             console.error('Error in handleSuggestSong:', err);
             setError(
-                err.message === 'Failed to fetch' 
+                err.message === 'Failed to fetch'
                     ? 'Cannot connect to the server. Please check your connection and try again.'
                     : err.message || 'Failed to get song recommendation'
             );
-
-            setSuggestedSong(prev => prev);
         } finally {
             setIsLoading(false);
         }
     };
+
+    const handleRegenerateSong = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(`http://localhost:3000/api/songs/recommend-song?skip=${skipCount + 1}`, {
+                method: 'POST',
+                body: new FormData(document.querySelector('form'))
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to get song recommendation');
+            }
+
+            setSuggestedSong(data.song);
+            setSkipCount(prev => prev + 1);
+
+            if (audioRef.current) {
+                audioRef.current.src = data.song.preview_url;
+                audioRef.current.play().catch(console.error);
+            }
+
+        } catch (err) {
+            console.error('Error regenerating song:', err);
+            setError(err.message || 'Failed to regenerate song recommendation');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (suggestedSong?.preview_url && audioRef.current) {
+            audioRef.current.src = suggestedSong.preview_url;
+            audioRef.current.play().catch(console.error);
+        }
+    }, [suggestedSong]);
 
     const toggleFavorite = (song) => {
         setFavorites(prev => {
@@ -308,40 +354,67 @@ const SongRecommenderPage = () => {
                                 </div>
 
                                 {suggestedSong && (
-                                    <div className="sr-right-column">
-                                        <div className="sr-song-card">
-                                            <img
-                                                src={suggestedSong.album_art}
-                                                alt={`${suggestedSong.name} album art`}
-                                                className="sr-album-art"
-                                            />
-                                            <div className="sr-song-info">
-                                                <h3>{suggestedSong.name}</h3>
-                                                <p>{suggestedSong.artist}</p>
-                                            </div>
-                                            <div className="sr-song-actions">
-                                                <button
-                                                    onClick={() => toggleFavorite(suggestedSong)}
-                                                    className={`sr-action-button ${favorites.some(fav => fav.uri === suggestedSong.uri) ? 'active' : ''}`}
-                                                >
-                                                    <Heart size={20} />
-                                                </button>
-                                                <button
-                                                    onClick={() => shareSong(suggestedSong)}
-                                                    className="sr-action-button"
-                                                >
-                                                    <Share2 size={20} />
-                                                </button>
-                                            </div>
-                                            {suggestedSong.preview_url && (
-                                                <audio
-                                                    ref={audioRef}
-                                                    controls
-                                                    className="sr-audio-player"
-                                                    src={suggestedSong.preview_url}
-                                                />
-                                            )}
+                                    <div className="sr-song-card">
+                                        <img
+                                            src={suggestedSong.album_art}
+                                            alt={`${suggestedSong.name} album art`}
+                                            className="sr-album-art"
+                                        />
+                                        <div className="sr-song-info">
+                                            <h3>{suggestedSong.name}</h3>
+                                            <p>{suggestedSong.artist}</p>
                                         </div>
+                                        <div className="sr-song-actions">
+                                            <button
+                                                onClick={() => toggleFavorite(suggestedSong)}
+                                                className={`sr-action-button ${favorites.some(fav => fav.uri === suggestedSong.uri) ? 'active' : ''}`}
+                                            >
+                                                <Heart size={20} />
+                                            </button>
+                                            <button
+                                                onClick={() => shareSong(suggestedSong)}
+                                                className="sr-action-button"
+                                            >
+                                                <Share2 size={20} />
+                                            </button>
+                                            <button
+                                                onClick={handleRegenerateSong}
+                                                className="sr-action-button"
+                                                disabled={isLoading}
+                                            >
+                                                <RefreshCw size={20} />
+                                            </button>
+                                        </div>
+
+                                        {/* Add Spotify player iframe */}
+                                        <iframe
+                                            src={`https://open.spotify.com/embed/track/${suggestedSong.uri.split(':')[2]}`}
+                                            width="100%"
+                                            height="80"
+                                            frameBorder="0"
+                                            allowtransparency="true"
+                                            allow="encrypted-media"
+                                            className="sr-spotify-player"
+                                        ></iframe>
+
+                                        {/* If there's a seed track, show it */}
+                                        {suggestedSong.seedTrack && (
+                                            <div className="sr-seed-track">
+                                                <h4>Seed Track:</h4>
+                                                <div className="sr-seed-track-info">
+                                                    <p>{suggestedSong.seedTrack.name} - {suggestedSong.seedTrack.artist}</p>
+                                                    <iframe
+                                                        src={`https://open.spotify.com/embed/track/${suggestedSong.seedTrack.uri.split(':')[2]}`}
+                                                        width="100%"
+                                                        height="80"
+                                                        frameBorder="0"
+                                                        allowtransparency="true"
+                                                        allow="encrypted-media"
+                                                        className="sr-spotify-player"
+                                                    ></iframe>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>

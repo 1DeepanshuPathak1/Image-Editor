@@ -106,72 +106,35 @@ class SongRecommender {
     async getSongRecommendation(imageAnalysis) {
         try {
             await this.ensureAuthenticated();
-
+    
             const moodSearchTerms = {
                 'upbeat': 'happy upbeat',
                 'peaceful': 'peaceful calm',
                 'intense': 'intense energetic',
                 'melancholic': 'soft melancholic'
             };
-
+    
             const baseQuery = moodSearchTerms[imageAnalysis.mood] || 'peaceful';
             const genreHint = imageAnalysis.genre_hints?.[0] || '';
             const searchQuery = `${baseQuery} ${genreHint}`.trim();
             console.log('Initial search query:', searchQuery);
-
+    
             const seedTrack = await this.findSuitableTrack(searchQuery);
             if (!seedTrack) {
                 console.log('Using fallback track as no suitable tracks found');
                 return this.getFallbackTrack();
             }
-
-            try {
-                console.log(`Getting recommendations using seed track: ${seedTrack.name}`);
-                const recommendations = await this.spotifyApi.getRecommendations({
-                    seed_tracks: [seedTrack.id],
-                    target_energy: imageAnalysis.energy_level,
-                    target_valence: imageAnalysis.valence,
-                    market: 'US',
-                    limit: 20
-                });
-
-                if (!recommendations.body.tracks?.length) {
-                    throw new Error('No recommendations returned');
-                }
-
-                // Sort by popularity and get top tracks
-                const sortedTracks = recommendations.body.tracks
-                    .sort((a, b) => b.popularity - a.popularity)
-                    .slice(0, 5);
-
-                const track = sortedTracks[Math.floor(Math.random() * sortedTracks.length)];
-                console.log(`Selected recommended track: ${track.name} by ${track.artists[0].name}`);
-
-                return {
-                    name: track.name,
-                    artist: track.artists[0].name,
-                    uri: track.uri,
-                    preview_url: track.preview_url,
-                    external_url: track.external_urls.spotify,
-                    album_art: track.album.images[0]?.url,
-                    seed_track: {
-                        name: seedTrack.name,
-                        artist: seedTrack.artists[0].name
-                    }
-                };
-
-            } catch (recError) {
-                console.log('Recommendation failed, using seed track as fallback');
-                return {
-                    name: seedTrack.name,
-                    artist: seedTrack.artists[0].name,
-                    uri: seedTrack.uri,
-                    preview_url: seedTrack.preview_url,
-                    external_url: seedTrack.external_urls.spotify,
-                    album_art: seedTrack.album.images[0]?.url
-                };
-            }
-
+    
+            // Return only the seed track
+            return {
+                name: seedTrack.name,
+                artist: seedTrack.artists[0].name,
+                uri: seedTrack.uri,
+                preview_url: seedTrack.preview_url,
+                external_url: seedTrack.external_urls.spotify,
+                album_art: seedTrack.album.images[0]?.url
+            };
+    
         } catch (error) {
             console.error('Spotify recommendation error:', error);
             return this.getFallbackTrack();

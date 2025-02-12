@@ -1,18 +1,14 @@
-// server/routes/songRoutes.js
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const songRecommender = require('../controllers/songRecommender');
 
-// Configure multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Route to handle song recommendation requests
-// server/routes/songRoutes.js
 router.post('/recommend-song', upload.single('image'), async (req, res) => {
     try {
         await songRecommender.initialized;
-        
+
         if (!req.file) {
             return res.status(400).json({ error: 'No image file provided' });
         }
@@ -21,66 +17,72 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             return res.status(400).json({ error: 'Image file too large' });
         }
 
-        // Get user preferences if any
-        let userPreferences = {};
-        try {
-            userPreferences = req.body.preferences ? JSON.parse(req.body.preferences) : {};
-        } catch (e) {
-            console.warn('Failed to parse preferences:', e);
+        // Get skip count from query params for regeneration
+        const skipCount = parseInt(req.query.skip) || 0;
+
+        // Analyze the image
+        const imageAnalysis = await songRecommender.analyzeImage(req.file.buffer);
+
+        if (!imageAnalysis) {
+            return res.status(500).json({ error: 'Failed to analyze image' });
         }
 
-        // Analyze image with error handling
-        let imageAnalysis;
-        try {
-            imageAnalysis = await songRecommender.analyzeImage(req.file.buffer);
-        } catch (imageError) {
-            console.error('Image analysis error:', imageError);
-            return res.status(422).json({
-                error: 'Failed to analyze image',
-                details: 'Please try a different image'
-            });
-        }
-
-        // Generate description
+        // Generate description from analysis
         const description = songRecommender.generateDescription(imageAnalysis);
 
-        try {
-            // Get song recommendation with retries
-            const song = await songRecommender.getSongRecommendation(imageAnalysis);
-            
-            if (!song) {
-                throw new Error('No suitable song found');
-            }
+        // Get song recommendation with skip count for regeneration support
+        const song = await songRecommender.getSongRecommendation(imageAnalysis, skipCount);
 
-            res.json({
-                description,
-                song,
-                analysis: imageAnalysis
-            });
-        } catch (spotifyError) {
-            console.error('Spotify API error:', spotifyError);
-            
-            // Try to get a fallback track
-            const fallbackTrack = songRecommender.getFallbackTrack();
-            
-            if (fallbackTrack) {
-                res.json({
-                    description: "Here's a peaceful song while we work on finding better matches...",
-                    song: fallbackTrack,
-                    analysis: imageAnalysis
-                });
-            } else {
-                res.status(503).json({
-                    error: 'Music service temporarily unavailable',
-                    details: 'Please try again in a few moments'
-                });
-            }
+        if (!song) {
+            return res.status(404).json({ error: 'No suitable song found' });
         }
+
+        // Return complete response including score
+        return res.status(200).json({
+            description,
+            song,
+            analysis: {
+                mood: imageAnalysis.mood,
+                energy_level: imageAnalysis.energy_level,
+                valence: imageAnalysis.valence,
+                genre_hints: imageAnalysis.genre_hints,
+                predictions: imageAnalysis.predictions
+            }
+        });
+
     } catch (error) {
-        console.error('Song recommendation error:', error);
-        res.status(500).json({
-            error: 'Failed to process recommendation',
-            details: error.message
+        console.error('Error in recommend-song route:', error);
+        return res.status(500).json({
+            error: 'Failed to process request',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+router.post('/regenerate-song', async (req, res) => {
+    try {
+        await songRecommender.initialized;
+
+        const { imageAnalysis, skipCount = 0 } = req.body;
+
+        if (!imageAnalysis) {
+            return res.status(400).json({ error: 'No image analysis provided' });
+        }
+
+        // Get next song recommendation using the skip count
+        const song = await songRecommender.getSongRecommendation(imageAnalysis, skipCount);
+
+        if (!song) {
+            return res.status(404).json({ error: 'No suitable song found' });
+        }
+
+        return res.status(200).json({ song });
+
+    } catch (error) {
+        console.error('Error in regenerate-song route:', error);
+        return res.status(500).json({
+            error: 'Failed to regenerate song recommendation',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });

@@ -386,6 +386,47 @@
 .sr-delete-button:hover {
     color: #ff4444;
 }
+.sr-song-score {
+    color: #666;
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.sr-action-button {
+    background: none;
+    border: 1px solid #232326;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sr-action-button:hover:not(:disabled) {
+    background-color: #232326;
+    color: #fff;
+}
+
+.sr-action-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.sr-action-button.active {
+    color: #ef4444;
+    border-color: #ef4444;
+}
+
+.sr-audio-player {
+    width: 100%;
+    height: 36px;
+    border-radius: 18px;
+    margin-top: 8px;
+}
 
 @media (max-width: 768px) {
     .sr-page-container {
