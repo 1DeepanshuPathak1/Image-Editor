@@ -15,10 +15,14 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         items = recentItems;
         break;
       case 'liked':
-        items = likedItems;
+        items = [...likedItems].sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
         break;
       case 'disliked':
-        items = dislikedItems;
+        items = [...dislikedItems].sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
         break;
       default:
         items = [];
@@ -129,9 +133,10 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
             <>
               {currentItems.map((item, index) => (
                 <RecommendationItem
-                  key={item.id || index} // Use item.id if available, otherwise fallback to index
+                  key={`${activeTab}-${item.id || item.songId || index}`}
                   item={item}
                   onDelete={onDeleteItem}
+                  tabType={activeTab}
                 />
               ))}
               <Pagination />
@@ -149,18 +154,41 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
   );
 };
 
-const RecommendationItem = ({ item, onDelete }) => {
-  const songData = item.song || item;
+const RecommendationItem = ({ item, onDelete, tabType }) => {
+  // Handle different data structures based on tab type
+  const getSongData = () => {
+    if (tabType === 'recent') {
+      return item.song || item;
+    }
+    
+    // For liked/disliked tabs
+    return {
+      name: item.name,
+      artist: item.artist,
+      uri: `spotify:track:${item.songId}`,
+      album_art: item.songData?.album_art || item.album_art,
+      external_url: item.external_url
+    };
+  };
+
+  const songData = getSongData();
   
   if (!songData) {
     console.warn('Invalid song data received:', item);
     return null;
   }
+
+  // Get the correct album art URL
+  const albumArtUrl = songData.album_art || 
+                     (item.songData && item.songData.album_art) || 
+                     (item.song && item.song.album_art) || 
+                     '/default-album-art.jpg';
+
   return (
     <div className="sr-history-item">
       <button
         className="sr-delete-button"
-        onClick={() => onDelete(item.id)}
+        onClick={() => onDelete(item.id || item.songId)}
         aria-label="Delete recommendation"
       >
         <X size={16} />
@@ -169,7 +197,7 @@ const RecommendationItem = ({ item, onDelete }) => {
       <div className="sr-history-content">
         <div className="sr-song-info">
           <img
-            src={songData.album_art || '/default-album-art.jpg'}
+            src={albumArtUrl}
             alt={`${songData.name || 'Unknown'} album art`}
             className="sr-history-image"
           />

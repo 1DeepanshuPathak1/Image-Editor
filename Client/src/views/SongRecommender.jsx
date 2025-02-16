@@ -84,7 +84,7 @@ const SongRecommenderPage = () => {
 
                 const response = await fetch(`http://localhost:3000/api/songs/preferences/${userId}`);
                 const data = await response.json();
-                
+
                 setLikedSongs(data.likedSongs || []);
                 setDislikedSongs(data.dislikedSongs || []);
                 setLikedArtists(data.likedArtists || []);
@@ -106,6 +106,18 @@ const SongRecommenderPage = () => {
         }
 
         try {
+            const songData = {
+                name: song.name,
+                artist: song.artist,
+                artist_id: song.artist_id,
+                uri: song.uri,
+                preview_url: song.preview_url,
+                external_url: song.external_url,
+                album_art: song.album_art, // Ensure album_art is at the root level
+                genre: song.genre,
+                mood: imageAnalysis?.mood
+            };
+
             const response = await fetch('http://localhost:3000/api/songs/feedback', {
                 method: 'POST',
                 headers: {
@@ -117,17 +129,7 @@ const SongRecommenderPage = () => {
                     type,
                     scope,
                     userId,
-                    songData: {
-                        name: song.name,
-                        artist: song.artist,
-                        artist_id: song.artist_id,
-                        uri: song.uri,
-                        preview_url: song.preview_url,
-                        external_url: song.external_url,
-                        album_art: song.album_art,
-                        genre: song.genre,
-                        mood: imageAnalysis?.mood
-                    }
+                    songData  // Pass the restructured songData
                 })
             });
 
@@ -150,6 +152,7 @@ const SongRecommenderPage = () => {
                             name: song.name,
                             artist: song.artist,
                             artistId: song.artist_id,
+                            album_art: song.album_art, // Add album_art here
                             timestamp: new Date()
                         }];
                     });
@@ -162,6 +165,7 @@ const SongRecommenderPage = () => {
                             name: song.name,
                             artist: song.artist,
                             artistId: song.artist_id,
+                            album_art: song.album_art, // Add album_art here
                             timestamp: new Date()
                         }];
                     });
