@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import { Upload, Palette, RotateCcw, Undo2 } from 'lucide-react';
 import '../css/ColorHarmony.css';
-import { ColorSchemeCard } from '../Components/ColorSchemeCard';
-import { useColorLogic } from '../Components/useColorLogic';
+import { ColorSchemeCard } from '../Components/ColorHarmonyComps/ColorSchemeCard';
+import { useColorLogic } from '../Components/ColorHarmonyComps/useColorLogic';
 
 const ColorHarmonyPage = () => {
   const [copiedColor, setCopiedColor] = useState(null);

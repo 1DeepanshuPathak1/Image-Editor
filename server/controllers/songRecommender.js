@@ -1,6 +1,7 @@
 const SpotifyWebApi = require('spotify-web-api-node');
 const { spawn } = require('child_process');
 const path = require('path');
+const SongRecommendationSystem = require('./SongRecommendationUtils');
 require('dotenv').config();
 
 class SongRecommender {
@@ -15,6 +16,7 @@ class SongRecommender {
         });
 
         this.initialized = this.initialize();
+        this.maxRetries = 3;
     }
 
     async initialize() {
@@ -50,94 +52,223 @@ class SongRecommender {
         }
     }
 
-    async findSuitableTrack(searchQuery, retryCount = 0) {
-        console.log(`Searching for tracks (attempt ${retryCount + 1}), query: ${searchQuery}`);
-        
-        const searchQueries = [
-            searchQuery,                          
-            searchQuery.split(' ')[0],          
-            `${searchQuery} music`,              
-            searchQuery.split(' ').slice(-1)[0]  
+    async searchArtists(query) {
+        await this.ensureAuthenticated();
+        try {
+            const response = await this.spotifyApi.searchArtists(query, { limit: 10 });
+            return response.body.artists.items;
+        } catch (error) {
+            console.error('Error searching artists:', error);
+            throw error;
+        }
+    }
+
+    async findSuitableTrack(searchQuery, preferences = {}, skipCount = 0, retryCount = 0) {
+        try {
+            const searchOptions = {
+                limit: 30,
+                offset: 0, 
+            };
+            if (!searchQuery || searchQuery.trim() === '') {
+                throw new Error('Search query cannot be empty');
+            }
+
+            let queryParts = [searchQuery.trim()];
+
+            if (preferences.genre && retryCount === 0) {
+                queryParts.push(`genre:${preferences.genre}`);
+            }
+
+            if (preferences.artist && retryCount === 0) {
+                if (typeof preferences.artist === 'string') {
+                    queryParts.push(`artist:${preferences.artist}`);
+                } else if (preferences.artist.name) {
+                    const sanitizedArtistName = preferences.artist.name
+                        .replace(/['"]/g, '')
+                        .trim();
+                    if (sanitizedArtistName) {
+                        queryParts.push(`artist:"${sanitizedArtistName}"`);
+                    }
+                }
+            }
+
+            let finalQuery = queryParts.filter(part => part && part.trim() !== '').join(' ');
+
+            if (!finalQuery) {
+                throw new Error('No valid search criteria provided');
+            }
+
+            if (preferences.language) {
+                const marketMap = {
+                    'en': ['US', 'GB', 'AU'],
+                    'es': ['ES', 'MX', 'AR'],
+                    'fr': ['FR', 'CA'],
+                    'de': ['DE', 'AT'],
+                    'it': ['IT'],
+                    'pt': ['PT', 'BR'],
+                    'ko': ['KR'],
+                    'ja': ['JP'],
+                    'hi': ['IN'],
+                    'ar': ['SA', 'AE']
+                };
+
+                if (marketMap[preferences.language]) {
+                    searchOptions.market = marketMap[preferences.language][0];
+                }
+            }
+
+            const searchResults = await this.spotifyApi.searchTracks(finalQuery, searchOptions);
+
+            if (!searchResults.body.tracks?.items?.length) {
+                if (retryCount < this.maxRetries) {
+                    return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
+                }
+                throw new Error('No tracks found with the current search criteria');
+            }
+
+            let tracks = searchResults.body.tracks.items.map(track => ({
+                name: track.name,
+                artist: track.artists[0].name,
+                artist_id: track.artists[0].id,
+                uri: track.uri,
+                preview_url: track.preview_url,
+                external_url: track.external_urls.spotify,
+                album_art: track.album.images[0]?.url,
+                popularity: track.popularity,
+                genre: preferences.genre || '',
+                mood: preferences.mood || '',
+                score: track.popularity
+            }));
+
+            console.log('Initial tracks with popularity scores:',
+                tracks.map(t => ({ name: t.name, score: t.score })));
+
+            const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
+                tracks,
+                {
+                    likedArtists: preferences.likedArtists || [],
+                    dislikedArtists: preferences.dislikedArtists || [],
+                    likedSongs: preferences.likedSongs || [],
+                    dislikedSongs: preferences.dislikedSongs || []
+                }
+            );
+
+            console.log('Ranked tracks with final scores:',
+                rankedTracks.map(t => ({ name: t.name, score: t.score })));
+
+            if (rankedTracks.length === 0) {
+                if (retryCount < this.maxRetries) {
+                    return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
+                }
+                throw new Error('No suitable tracks found after filtering');
+            }
+
+            const selectedTrack = rankedTracks[skipCount % rankedTracks.length];
+
+            console.log('Selected track:', selectedTrack.name, 'Score:', selectedTrack.score);
+
+            SongRecommendationSystem.markSongAsSuggested(selectedTrack.uri);
+
+            return selectedTrack;
+        } catch (error) {
+            if (retryCount < this.maxRetries) {
+                console.log(`Error in attempt ${retryCount + 1}, retrying with broader search`);
+                return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
+            }
+            console.error('Error finding suitable track:', error);
+            throw error;
+        }
+    }
+
+    async retrySearch(searchQuery, preferences, skipCount) {
+        const retryStrategies = [
+            async () => {
+                const baseQuery = `${preferences.mood || ''} ${preferences.genre || ''}`.trim();
+                return await this.findSuitableTrack(baseQuery, {
+                    language: preferences.language
+                }, skipCount);
+            },
+            async () => {
+                return await this.findSuitableTrack(preferences.genre || searchQuery, {
+                    language: preferences.language
+                }, skipCount);
+            },
+            async () => {
+                return await this.findSuitableTrack(searchQuery, {
+                    language: preferences.language
+                }, skipCount + 1);
+            }
         ];
 
-        for (let query of searchQueries) {
+        for (const strategy of retryStrategies) {
             try {
-                const searchResults = await this.spotifyApi.searchTracks(query, { 
-                    limit: 50,
-                    market: 'US'
-                });
-
-                if (!searchResults.body.tracks?.items?.length) {
-                    console.log(`No results found for query: ${query}`);
-                    continue;
-                }
-
-                let suitableTracks = searchResults.body.tracks.items.filter(track => 
-                    track.preview_url && track.popularity > 20
-                );
-
-                if (suitableTracks.length === 0) {
-                    suitableTracks = searchResults.body.tracks.items.filter(track => 
-                        track.popularity > 20
-                    );
-                }
-
-                if (suitableTracks.length > 0) {
-                    suitableTracks.sort((a, b) => b.popularity - a.popularity);
-                    const topTracks = suitableTracks.slice(0, 10);
-                    const selectedTrack = topTracks[Math.floor(Math.random() * topTracks.length)];
-                    console.log(`Found suitable track: ${selectedTrack.name} by ${selectedTrack.artists[0].name}`);
-                    return selectedTrack;
-                }
+                const result = await strategy();
+                if (result) return result;
             } catch (error) {
-                console.error(`Search error for query "${query}":`, error);
+                console.warn('Retry strategy failed:', error);
+                continue;
             }
         }
 
-        if (retryCount < 2) {
-            const fallbackQueries = ['peaceful', 'acoustic', 'ambient'];
-            return this.findSuitableTrack(fallbackQueries[retryCount], retryCount + 1);
-        }
-
-        console.log('No suitable tracks found after all attempts');
-        return null;
+        throw new Error('No suitable tracks found after all retry attempts');
     }
 
-    async getSongRecommendation(imageAnalysis) {
+    async getSongRecommendation(imageAnalysis, skipCount = 0, preferences = {}) {
         try {
             await this.ensureAuthenticated();
-    
+
+            // Combine image analysis with user preferences
             const moodSearchTerms = {
                 'upbeat': 'happy upbeat',
                 'peaceful': 'peaceful calm',
                 'intense': 'intense energetic',
-                'melancholic': 'soft melancholic'
+                'melancholic': 'soft melancholic',
+                'romantic': 'romantic love',
+                'dark': 'dark atmospheric',
+                'dreamy': 'dreamy ambient',
+                'epic': 'epic orchestral',
+                'angry': 'angry aggressive',
+                'happy': 'happy cheerful'
             };
-    
-            const baseQuery = moodSearchTerms[imageAnalysis.mood] || 'peaceful';
-            const genreHint = imageAnalysis.genre_hints?.[0] || '';
+
+            // Prioritize user-selected mood if available
+            const baseQuery = preferences.mood ?
+                moodSearchTerms[preferences.mood] :
+                moodSearchTerms[imageAnalysis.mood] || '';
+
+            // Add genre from either user preference or image analysis
+            const genreHint = preferences.genre || imageAnalysis.genre_hints?.[0] || '';
             const searchQuery = `${baseQuery} ${genreHint}`.trim();
-            console.log('Initial search query:', searchQuery);
-    
-            const seedTrack = await this.findSuitableTrack(searchQuery);
-            if (!seedTrack) {
-                console.log('Using fallback track as no suitable tracks found');
-                return this.getFallbackTrack();
+
+            console.log('Search query:', searchQuery, 'Preferences:', preferences);
+
+            try {
+                const track = await this.findSuitableTrack(searchQuery, preferences, skipCount);
+                return track;
+            } catch (error) {
+                console.log('Initial search failed, trying retry strategies');
+                return await this.retrySearch(searchQuery, preferences, skipCount);
             }
-    
-            // Return only the seed track
-            return {
-                name: seedTrack.name,
-                artist: seedTrack.artists[0].name,
-                uri: seedTrack.uri,
-                preview_url: seedTrack.preview_url,
-                external_url: seedTrack.external_urls.spotify,
-                album_art: seedTrack.album.images[0]?.url
-            };
-    
+
         } catch (error) {
-            console.error('Spotify recommendation error:', error);
+            console.error('Recommendation error:', error);
             return this.getFallbackTrack();
+        }
+    }
+
+    async getAvailableGenres() {
+        await this.ensureAuthenticated();
+        try {
+            const response = await this.spotifyApi.getAvailableGenreSeeds();
+            return response.body.genres;
+        } catch (error) {
+            console.error('Error fetching genres:', error);
+            return [
+                "pop", "rock", "hip-hop", "r-n-b", "electronic",
+                "classical", "jazz", "indie", "metal", "folk",
+                "blues", "country", "latin", "reggae", "world-music",
+                "alternative", "punk", "soul", "funk", "disco"
+            ];
         }
     }
 
@@ -193,7 +324,7 @@ class SongRecommender {
                 try {
                     const jsonStartIndex = dataString.indexOf('{');
                     const jsonEndIndex = dataString.lastIndexOf('}');
-                    
+
                     if (jsonStartIndex === -1 || jsonEndIndex === -1) {
                         throw new Error('No valid JSON output found');
                     }
@@ -223,7 +354,13 @@ class SongRecommender {
             'upbeat': 'vibrant and energetic',
             'peaceful': 'calm and serene',
             'intense': 'powerful and dynamic',
-            'melancholic': 'thoughtful and atmospheric'
+            'melancholic': 'thoughtful and atmospheric',
+            'romantic': 'warm and intimate',
+            'dark': 'mysterious and intense',
+            'dreamy': 'ethereal and floating',
+            'epic': 'grand and powerful',
+            'angry': 'fierce and intense',
+            'happy': 'bright and cheerful'
         };
 
         return `This ${moodDescriptions[mood]} scene featuring ${mainObject} suggests ${suggestedGenre} music. Finding a matching song...`;

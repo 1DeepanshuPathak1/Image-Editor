@@ -5,6 +5,7 @@ const passport = require('passport');
 const session = require('express-session');
 const SpotifyWebApi = require('spotify-web-api-node');
 const { MongoDB } = require('./controllers/database');
+const MongoStore = require('connect-mongo');
 const { SignUp, SignIn, GoogleCallback, GitHubCallback, AuthCheck } = require('./controllers/connect');
 const { FilterRequest, UploadPost } = require('./controllers/Getrequests');
 const { ResizeImage } = require('./controllers/resizeImage');
@@ -18,19 +19,37 @@ const port = process.env.PORT || 3000;
 const connectionURL = 'mongodb://localhost:27017/imageEditorDB';
 
 // Middleware configuration
-app.use(cors({
+const corsOptions = {
     origin: process.env.CLIENT_URL,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
-    credentials: true
-}));
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
     secret: process.env.SESSION_SECRET,
-    resave: false,
+    resave: true,
     saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: connectionURL,
+        ttl: 24 * 60 * 60
+    }),
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000,
+        sameSite: 'lax',  // Add this
+        domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost' 
+    }
 }));
+
+
 
 // Passport configuration
 app.use(passport.initialize());
@@ -87,6 +106,31 @@ app.get('/auth/github', (req, res, next) => {
 });
 app.get('/auth/github/callback', GitHubCallback);
 app.get('/auth/check', AuthCheck);
+app.get('/api/user', (req, res) => {
+    if (req.isAuthenticated()) {
+        const user = req.user;
+        return res.status(200).json({
+            userId: user._id.toString(),
+            user: {
+                id: user._id.toString(),
+                email: user.email,
+                name: user.firstName || user.name
+            }
+        });
+    } else if (req.session.user) {
+        const sessionUser = req.session.user;
+        return res.status(200).json({
+            userId: sessionUser.id.toString(),
+            user: {
+                id: sessionUser.id.toString(),
+                email: sessionUser.email,
+                name: sessionUser.name
+            }
+        });
+    }
+    
+    return res.status(200).json({ userId: null, user: null });
+});
 
 // Spotify authentication routes
 app.get('/login', (_req, res) => {

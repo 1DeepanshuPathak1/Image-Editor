@@ -1,0 +1,88 @@
+/* FeedbackDialog.css */
+.feedback-container {
+    position: relative;
+    display: flex;
+    gap: 8px;
+}
+
+.feedback-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    background-color: transparent;
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.feedback-button:hover {
+    background-color: #27272a;
+    border-color: #52525b;
+}
+
+.feedback-button.active.like {
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
+.feedback-button.active.dislike {
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.feedback-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 200px;
+    background-color: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    overflow: hidden;
+}
+
+.feedback-option {
+    width: 100%;
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 14px;
+    color: #d4d4d8;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.feedback-option:hover {
+    background-color: #27272a;
+}
+
+.feedback-option svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Animation for dropdown */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.feedback-dropdown {
+    animation: slideDown 0.2s ease-out;
+}

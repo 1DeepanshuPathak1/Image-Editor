@@ -1,245 +1,216 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Upload, X, Share2, Clock, Heart, Loader, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, X, Share2, Loader, RefreshCw } from 'lucide-react';
 import '../css/SongRecommender.css';
+import FeedbackTabs from '../Components/SongRecComp/FeedbackTabs';
+import SongFeedback from '../Components/SongRecComp/FeedbackDialog';
+import { ArtistSearch, CustomSelect, genreOptions, moodOptions, popularityOptions, languageOptions } from '../Components/SongRecComp/AdvancedOptions';
+import { useImageHandling } from '../Components/SongRecComp/ImageHandling';
+import { useSongHandling } from '../Components/SongRecComp/SongHandling';
+import SongScoreDisplay from '../Components/SongRecComp/SongScoreDisplay';
 
 const SongRecommenderPage = () => {
-    const [selectedImage, setSelectedImage] = useState(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [chatResponse, setChatResponse] = useState('');
-    const [suggestedSong, setSuggestedSong] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [imageAnalysis, setImageAnalysis] = useState(null);
-    const [skipCount, setSkipCount] = useState(0);
-    const [favorites, setFavorites] = useState(() => {
-        try {
-            const saved = localStorage.getItem('songFavorites');
-            return saved ? JSON.parse(saved) : [];
-        } catch (error) {
-            console.warn('Error loading favorites:', error);
-            return [];
-        }
-    });
-    const [history, setHistory] = useState(() => {
-        try {
-            const saved = localStorage.getItem('songHistory');
-            return saved ? JSON.parse(saved) : [];
-        } catch (error) {
-            console.warn('Error loading history:', error);
-            return [];
-        }
-    });
-
-    const audioRef = useRef(null);
-    const maxHistoryItems = 8;
-
-    const safeSetLocalStorage = (key, value) => {
-        try {
-            const serialized = JSON.stringify(value);
-            if (serialized.length > 4500000) {
-                throw new Error('Data size exceeds storage limit');
-            }
-            localStorage.setItem(key, serialized);
-        } catch (error) {
-            console.warn(`Error saving to localStorage (${key}):`, error);
-            if (error.name === 'QuotaExceededError') {
-                if (key === 'songHistory') {
-                    const truncatedHistory = value.slice(0, Math.max(maxHistoryItems - 2, 1));
-                    try {
-                        localStorage.setItem(key, JSON.stringify(truncatedHistory));
-                        setHistory(truncatedHistory);
-                    } catch (e) {
-                        console.error('Failed to save even after truncating:', e);
+    const [selectedArtist, setSelectedArtist] = useState(null);
+    const [genre, setGenre] = useState('');
+    const [mood, setMood] = useState('');
+    const [popularity, setPopularity] = useState('');
+    const [language, setLanguage] = useState('');
+    const [activeTab, setActiveTab] = useState('recent');
+    const [history, setHistory] = useState([]);
+    const [likedSongs, setLikedSongs] = useState([]);
+    const [dislikedSongs, setDislikedSongs] = useState([]);
+    const [likedArtists, setLikedArtists] = useState([]);
+    const [dislikedArtists, setDislikedArtists] = useState([]);
+    const [userId, setUserId] = useState(null);
+    // Replace the existing useEffect for fetching userId with this:
+    useEffect(() => {
+        const fetchUserId = async () => {
+            try {
+                const response = await fetch('http://localhost:3000/api/user', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
                     }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
+
+                const data = await response.json();
+                console.log('User data received:', data);
+
+                if (data.userId) {
+                    setUserId(data.userId);
+                } else {
+                    console.log('No user ID in response');
+                }
+            } catch (error) {
+                console.error('Failed to fetch user ID:', error);
             }
-        }
-    };
+        };
+
+        fetchUserId();
+    }, []);
+
+
+    const maxHistoryItems = 50;
+
+    const { selectedImage, error, handleImageUpload, handleRemoveImage, setError } = useImageHandling();
+    const { chatResponse, suggestedSong, isLoading, imageAnalysis, handleSuggestSong, handleRegenerateSong, shareSong } =
+        useSongHandling(
+            selectedImage,
+            showAdvanced,
+            genre,
+            mood,
+            popularity,
+            language,
+            selectedArtist,
+            setHistory,
+            likedSongs,
+            dislikedSongs,
+            likedArtists,
+            dislikedArtists,
+            userId,
+            maxHistoryItems
+        );
 
     useEffect(() => {
-        safeSetLocalStorage('songFavorites', favorites);
-    }, [favorites]);
+        const fetchUserPreferences = async () => {
+            try {
+                if (!userId) return;
 
-    useEffect(() => {
-        safeSetLocalStorage('songHistory', history);
-    }, [history]);
-
-    useEffect(() => {
-        if (suggestedSong?.preview_url && audioRef.current) {
-            audioRef.current.src = suggestedSong.preview_url;
-            audioRef.current.play().catch(error => {
-                console.warn('Error playing audio:', error);
-            });
-        }
-    }, [suggestedSong]);
-
-    const handleImageUpload = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            if (file.size > 5000000) {
-                setError('Image size too large. Please choose an image under 5MB.');
-                return;
+                const response = await fetch(`http://localhost:3000/api/songs/preferences/${userId}`);
+                const data = await response.json();
+                
+                setLikedSongs(data.likedSongs || []);
+                setDislikedSongs(data.dislikedSongs || []);
+                setLikedArtists(data.likedArtists || []);
+                setDislikedArtists(data.dislikedArtists || []);
+            } catch (error) {
+                console.error('Error fetching user preferences:', error);
             }
+        };
 
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setSelectedImage(reader.result);
-                setError(null);
-            };
-            reader.onerror = () => {
-                setError('Failed to load image. Please try another image.');
-            };
-            reader.readAsDataURL(file);
+        fetchUserPreferences();
+    }, [userId]);
+
+    // Handle feedback (like/dislike) for songs or artists
+    const handleFeedback = async (type, scope, song) => {
+        if (!userId || !song || !song.uri) {
+            console.error('Invalid user ID or song data');
+            setError('Invalid user ID or song data');
+            return;
         }
-    };
-
-    const handleRemoveImage = () => {
-        setSelectedImage(null);
-        setError(null);
-        const fileInput = document.getElementById('fileInput');
-        if (fileInput) {
-            fileInput.value = '';
-        }
-    };
-
-    const handleSuggestSong = async () => {
-        setIsLoading(true);
-        setError(null);
 
         try {
-            const base64Response = await fetch(selectedImage);
-            const blob = await base64Response.blob();
-
-            const formData = new FormData();
-            formData.append('image', blob, 'image.jpg');
-
-            if (showAdvanced) {
-                const preferences = {
-                    genre: document.querySelector('select[name="genre"]')?.value,
-                    mood: document.querySelector('select[name="mood"]')?.value
-                };
-                formData.append('preferences', JSON.stringify(preferences));
-            }
-
-            const apiResponse = await fetch('http://localhost:3000/api/songs/recommend-song', {
+            const response = await fetch('http://localhost:3000/api/songs/feedback', {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    songId: song.uri.split(':')[2],
+                    artistId: song.artist_id,
+                    type,
+                    scope,
+                    userId,
+                    songData: {
+                        name: song.name,
+                        artist: song.artist,
+                        artist_id: song.artist_id,
+                        uri: song.uri,
+                        preview_url: song.preview_url,
+                        external_url: song.external_url,
+                        album_art: song.album_art,
+                        genre: song.genre,
+                        mood: imageAnalysis?.mood
+                    }
+                })
             });
 
-            const data = await apiResponse.json();
-
-            if (!apiResponse.ok) {
-                throw new Error(data.error || 'Failed to get song recommendation');
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Server error:', errorData);
+                throw new Error(errorData.error || 'Failed to save feedback');
             }
-
-            setChatResponse(data.description || 'Here\'s a song that matches your image...');
-            setSuggestedSong(data.song);
-            setImageAnalysis(data.analysis);
-
-            // Add the seed track to the song display
-            if (data.song.seed_track) {
-                const seedTrackInfo = {
-                    ...data.song.seed_track,
-                    isSeedTrack: true
-                };
-                setSuggestedSong(prev => ({
-                    ...prev,
-                    seedTrack: seedTrackInfo
-                }));
-            }
-
-            const historyItem = {
-                id: Date.now(),
-                song: data.song,
-                imageUrl: selectedImage,
-                timestamp: new Date().toISOString()
-            };
-
-            setHistory(prev => {
-                const newHistory = [historyItem, ...prev].slice(0, maxHistoryItems);
-                return newHistory;
-            });
-
-        } catch (err) {
-            console.error('Error in handleSuggestSong:', err);
-            setError(
-                err.message === 'Failed to fetch'
-                    ? 'Cannot connect to the server. Please check your connection and try again.'
-                    : err.message || 'Failed to get song recommendation'
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleRegenerateSong = async () => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-            const response = await fetch(`http://localhost:3000/api/songs/recommend-song?skip=${skipCount + 1}`, {
-                method: 'POST',
-                body: new FormData(document.querySelector('form'))
-            });
 
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to get song recommendation');
+            // Update local state based on feedback
+            if (scope === 'song') {
+                if (type === 'like') {
+                    setDislikedSongs(prev => prev.filter(s => s.songId !== song.uri.split(':')[2]));
+                    setLikedSongs(prev => {
+                        const exists = prev.some(s => s.songId === song.uri.split(':')[2]);
+                        return exists ? prev : [...prev, {
+                            songId: song.uri.split(':')[2],
+                            name: song.name,
+                            artist: song.artist,
+                            artistId: song.artist_id,
+                            timestamp: new Date()
+                        }];
+                    });
+                } else {
+                    setLikedSongs(prev => prev.filter(s => s.songId !== song.uri.split(':')[2]));
+                    setDislikedSongs(prev => {
+                        const exists = prev.some(s => s.songId === song.uri.split(':')[2]);
+                        return exists ? prev : [...prev, {
+                            songId: song.uri.split(':')[2],
+                            name: song.name,
+                            artist: song.artist,
+                            artistId: song.artist_id,
+                            timestamp: new Date()
+                        }];
+                    });
+                }
+            } else if (scope === 'artist') {
+                if (type === 'like') {
+                    setDislikedArtists(prev => prev.filter(a => a.artistId !== song.artist_id));
+                    setLikedArtists(prev => {
+                        const exists = prev.some(a => a.artistId === song.artist_id);
+                        return exists ? prev : [...prev, {
+                            artistId: song.artist_id,
+                            name: song.artist,
+                            timestamp: new Date()
+                        }];
+                    });
+                } else {
+                    setLikedArtists(prev => prev.filter(a => a.artistId !== song.artist_id));
+                    setDislikedArtists(prev => {
+                        const exists = prev.some(a => a.artistId === song.artist_id);
+                        return exists ? prev : [...prev, {
+                            artistId: song.artist_id,
+                            name: song.artist,
+                            timestamp: new Date()
+                        }];
+                    });
+                }
             }
 
-            setSuggestedSong(data.song);
-            setSkipCount(prev => prev + 1);
-
-            if (audioRef.current) {
-                audioRef.current.src = data.song.preview_url;
-                audioRef.current.play().catch(console.error);
-            }
-
-        } catch (err) {
-            console.error('Error regenerating song:', err);
-            setError(err.message || 'Failed to regenerate song recommendation');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (suggestedSong?.preview_url && audioRef.current) {
-            audioRef.current.src = suggestedSong.preview_url;
-            audioRef.current.play().catch(console.error);
-        }
-    }, [suggestedSong]);
-
-    const toggleFavorite = (song) => {
-        setFavorites(prev => {
-            const exists = prev.some(fav => fav.uri === song.uri);
-            if (exists) {
-                return prev.filter(fav => fav.uri !== song.uri);
-            }
-            return [...prev, { ...song, timestamp: new Date().toISOString() }];
-        });
-    };
-
-    const shareSong = async (song) => {
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: `${song.name} by ${song.artist}`,
-                    text: `Check out this song I discovered: ${song.name} by ${song.artist}`,
-                    url: song.external_url
+            // Update history with feedback
+            setHistory(prev => {
+                const updatedHistory = prev.map(item => {
+                    if (item.song.uri === song.uri) {
+                        return { ...item, feedback: { type, scope } };
+                    }
+                    return item;
                 });
-            } catch (err) {
-                setError('Failed to share song');
-            }
-        } else {
-            await navigator.clipboard.writeText(song.external_url);
+                return updatedHistory;
+            });
+
+        } catch (error) {
+            console.error('Error saving feedback:', error);
+            setError('Failed to save feedback. Please try again.');
         }
     };
 
-    const deleteHistoryItem = (id) => {
-        setHistory(prev => prev.filter(item => item.id !== id));
-    };
+    // Clear recent recommendations on page refresh
+    useEffect(() => {
+        setHistory([]);
+    }, []);
 
     return (
         <div className="sr-page-container">
@@ -264,18 +235,50 @@ const SongRecommenderPage = () => {
 
                             {showAdvanced && (
                                 <div className="sr-advanced-options">
-                                    <select className="sr-select">
-                                        <option value="">Select Genre</option>
-                                        <option value="pop">Pop</option>
-                                        <option value="rock">Rock</option>
-                                        <option value="jazz">Jazz</option>
-                                    </select>
-                                    <select className="sr-select">
-                                        <option value="">Select Mood</option>
-                                        <option value="happy">Happy</option>
-                                        <option value="calm">Calm</option>
-                                        <option value="energetic">Energetic</option>
-                                    </select>
+                                    <div className="sr-advanced-section">
+                                        <label className="sr-label">Artist</label>
+                                        <ArtistSearch onSelect={setSelectedArtist} />
+                                    </div>
+
+                                    <div className="sr-advanced-section">
+                                        <label className="sr-label">Genre</label>
+                                        <CustomSelect
+                                            options={genreOptions}
+                                            value={genre}
+                                            onChange={setGenre}
+                                            placeholder="Select Genre"
+                                        />
+                                    </div>
+
+                                    <div className="sr-advanced-section">
+                                        <label className="sr-label">Mood</label>
+                                        <CustomSelect
+                                            options={moodOptions}
+                                            value={mood}
+                                            onChange={setMood}
+                                            placeholder="Select Mood"
+                                        />
+                                    </div>
+
+                                    <div className="sr-advanced-section">
+                                        <label className="sr-label">Artist Popularity</label>
+                                        <CustomSelect
+                                            options={popularityOptions}
+                                            value={popularity}
+                                            onChange={setPopularity}
+                                            placeholder="Select Popularity"
+                                        />
+                                    </div>
+
+                                    <div className="sr-advanced-section">
+                                        <label className="sr-label">Language</label>
+                                        <CustomSelect
+                                            options={languageOptions}
+                                            value={language}
+                                            onChange={setLanguage}
+                                            placeholder="Select Language"
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -360,17 +363,16 @@ const SongRecommenderPage = () => {
                                             alt={`${suggestedSong.name} album art`}
                                             className="sr-album-art"
                                         />
-                                        <div className="sr-song-info">
+                                        <div className="sr-songs-info">
                                             <h3>{suggestedSong.name}</h3>
                                             <p>{suggestedSong.artist}</p>
                                         </div>
+                                        <SongScoreDisplay score={suggestedSong.score} />
                                         <div className="sr-song-actions">
-                                            <button
-                                                onClick={() => toggleFavorite(suggestedSong)}
-                                                className={`sr-action-button ${favorites.some(fav => fav.uri === suggestedSong.uri) ? 'active' : ''}`}
-                                            >
-                                                <Heart size={20} />
-                                            </button>
+                                            <SongFeedback
+                                                suggestedSong={suggestedSong}
+                                                onFeedbackChange={handleFeedback}
+                                            />
                                             <button
                                                 onClick={() => shareSong(suggestedSong)}
                                                 className="sr-action-button"
@@ -386,7 +388,6 @@ const SongRecommenderPage = () => {
                                             </button>
                                         </div>
 
-                                        {/* Add Spotify player iframe */}
                                         <iframe
                                             src={`https://open.spotify.com/embed/track/${suggestedSong.uri.split(':')[2]}`}
                                             width="100%"
@@ -397,7 +398,6 @@ const SongRecommenderPage = () => {
                                             className="sr-spotify-player"
                                         ></iframe>
 
-                                        {/* If there's a seed track, show it */}
                                         {suggestedSong.seedTrack && (
                                             <div className="sr-seed-track">
                                                 <h4>Seed Track:</h4>
@@ -420,39 +420,19 @@ const SongRecommenderPage = () => {
                             </div>
                         )}
 
-                        {history.length > 0 && (
-                            <div className="sr-history-section">
-                                <h3>Recent Recommendations</h3>
-                                <div className="sr-history-list">
-                                    {history.map(item => (
-                                        <div key={item.id} className="sr-history-item">
-                                            <img
-                                                src={item.song.album_art}
-                                                alt={`${item.song.name} album art`}
-                                                className="sr-history-image"
-                                            />
-                                            <div className="sr-history-info">
-                                                <h4>{item.song.name}</h4>
-                                                <p>{item.song.artist}</p>
-                                            </div>
-                                            <div className="sr-history-actions">
-                                                <div className="sr-history-timestamp">
-                                                    <Clock size={16} />
-                                                    <span>{new Date(item.timestamp).toLocaleDateString()}</span>
-                                                </div>
-                                                <button
-                                                    onClick={() => deleteHistoryItem(item.id)}
-                                                    className="sr-delete-button"
-                                                    aria-label="Delete recommendation"
-                                                >
-                                                    <X size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        <FeedbackTabs
+                            activeTab={activeTab}
+                            onTabChange={setActiveTab}
+                            recentItems={history}
+                            likedItems={likedSongs}
+                            dislikedItems={dislikedSongs}
+                            onDeleteItem={(id) => {
+                                setHistory(prev => prev.filter(item => item.id !== id));
+                                fetch(`http://localhost:3000/api/songs/history/${userId}/${id}`, {
+                                    method: 'DELETE'
+                                });
+                            }}
+                        />
                     </div>
                 </div>
             </div>

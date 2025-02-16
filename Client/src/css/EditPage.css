@@ -27,7 +27,7 @@ img {
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: rgba(0, 0, 0, 0.102);
     z-index: 10;
 }
 

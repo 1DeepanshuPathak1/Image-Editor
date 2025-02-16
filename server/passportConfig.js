@@ -1,12 +1,13 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const GitHubStrategy = require('passport-github2').Strategy; 
+const GitHubStrategy = require('passport-github2').Strategy;
+const LocalStrategy = require('passport-local').Strategy;
 const { User } = require('./models/User');
 require('dotenv').config();
 
-// Serialize/Deserialize (move to top)
+// Serialize/Deserialize
 passport.serializeUser((user, done) => {
-    done(null, user.id);
+    done(null, user.id || user._id);
 });
 
 passport.deserializeUser(async (id, done) => {
@@ -14,9 +15,38 @@ passport.deserializeUser(async (id, done) => {
         const user = await User.findById(id);
         done(null, user);
     } catch (error) {
+        console.error('Deserialize error:', error);
         done(error, null);
     }
 });
+
+// Local Strategy for email/password login
+passport.use('local', new LocalStrategy({
+    usernameField: 'email',
+    passwordField: 'password',
+    passReqToCallback: true 
+}, async (req, email, password, done) => {
+    try {
+        const user = await User.findOne({ email });
+        if (!user) return done(null, false, { message: 'No user found.' });
+
+        if (!await user.comparePassword(password)) {
+            return done(null, false, { message: 'Incorrect password.' });
+        }
+
+        // Set session data here as well
+        req.session.user = {
+            id: user._id,
+            email: user.email,
+            name: user.firstName,
+            provider: 'local'
+        };
+
+        return done(null, user);
+    } catch (error) {
+        return done(error, null);
+    }
+}));
 
 // Google Strategy
 passport.use('google', new GoogleStrategy({

@@ -1,18 +1,17 @@
 const moment = require('moment');
 const { User, Log } = require('../models/User');
-const UAParser = require('ua-parser-js'); 
-const passport = require('passport')
-
+const UAParser = require('ua-parser-js');
+const passport = require('passport');
+const bcrypt = require('bcrypt');
 
 const getClientIP = (req) => {
-    return req.headers['x-forwarded-for']?.split(',')[0] 
+    return req.headers['x-forwarded-for']?.split(',')[0]
         || req.headers['x-real-ip']
         || req.connection.remoteAddress
         || req.socket.remoteAddress;
 };
 
-
-async function SignUp(req,res) {
+async function SignUp(req, res) {
     try {
         const { firstName, middleName, lastName, dateOfBirth, email, password } = req.body;
         const existingUser = await User.findOne({ email });
@@ -29,15 +28,15 @@ async function SignUp(req,res) {
     }
 }
 
-async function SignIn(req,res)  {
+async function SignIn(req, res) {
     const { email, password } = req.body;
-    const userIp = req.ip; 
-    const userAgent = req.headers['user-agent']; 
+    const userIp = req.ip;
+    const userAgent = req.headers['user-agent'];
     const parser = new UAParser(userAgent);
     const browserInfo = parser.getBrowser();
     const deviceInfo = parser.getDevice();
     const userBrowser = browserInfo.name || "unknown";
-    const userDevice = deviceInfo.vendor || "unknown"; 
+    const userDevice = deviceInfo.vendor || "unknown";
 
     try {
         const user = await User.findOne({ email });
@@ -46,44 +45,87 @@ async function SignIn(req,res)  {
                 email,
                 ip: userIp,
                 browser: userBrowser,
-                device: userDevice || 'unknown', 
+                device: userDevice || 'unknown',
                 status: 'failed',
                 timestamp: moment().format("DD/MM/YY-HH:mm"),
             });
-            return res.status(400).json({ message: 'No Users Found or Invalid Email.' });
+            return res.status(400).json({ message: 'No user found.' });
         }
-        if (!await user.comparePassword(password)) {
+
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
             await Log.create({
                 email,
                 ip: userIp,
                 browser: userBrowser,
-                device: userDevice || 'unknown', 
+                device: userDevice || 'unknown',
                 status: 'failed',
-                timestamp: moment().format("DD/MM/YY-HH:mm"), 
+                timestamp: moment().format("DD/MM/YY-HH:mm"),
             });
-            return res.status(400).json({ message: 'Invalid Password.' });
+            return res.status(400).json({ message: 'Incorrect password.' });
         }
+
+        // Log successful login
         await Log.create({
-            email,
+            email: user.email,
             ip: userIp,
-            realIP:getClientIP(req),
+            realIP: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
             browser: userBrowser,
             device: userDevice,
             status: 'success',
             provider: 'local',
             timestamp: moment().format("DD/MM/YY-HH:mm"),
+            userId: user._id
         });
-        res.status(200).json({ message: 'Sign in successful!' });
+
+        // First authenticate using passport
+        return new Promise((resolve, reject) => {
+            req.login(user, async (loginErr) => {
+                if (loginErr) {
+                    console.error('Login error:', loginErr);
+                    reject(loginErr);
+                    return res.status(500).json({ message: 'Error during login' });
+                }
+
+                req.session.user = {
+                    id: user._id,
+                    email: user.email,
+                    name: user.firstName,
+                    provider: 'local'
+                };
+
+                await new Promise((resolve, reject) => {
+                    req.session.save((err) => {
+                        if (err) {
+                            console.error('Session save error:', err);
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
+                    });
+                });
+
+                resolve();
+                return res.status(200).json({
+                    message: 'Sign in successful!',
+                    user: {
+                        id: user._id.toString(),
+                        email: user.email,
+                        name: user.firstName
+                    }
+                });
+            });
+        });
     } catch (error) {
-        console.error('Error during sign in:', error);
-        res.status(500).json({ message: 'Server error.' });
+        console.error('Error during sign-in:', error);
+        return res.status(500).json({ message: 'Server error during sign-in.' });
     }
 }
 
 const GoogleCallback = [
-    passport.authenticate('google', { 
+    passport.authenticate('google', {
         failureRedirect: '/signin',
-        session: true 
+        session: true
     }),
     async (req, res) => {
         const userIp = req.ip;
@@ -146,9 +188,9 @@ const GoogleCallback = [
 ];
 
 const GitHubCallback = [
-    passport.authenticate('github', { 
+    passport.authenticate('github', {
         failureRedirect: '/signin',
-        session: true 
+        session: true
     }),
     async (req, res) => {
         const userIp = req.ip;
@@ -221,4 +263,11 @@ async function AuthCheck(req, res) {
     }
 }
 
-module.exports = {SignUp,SignIn, GoogleCallback, GitHubCallback, AuthCheck};
+function isAuthenticated(req, res, next) {
+    if (req.session.user) {
+        return next();
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+}
+
+module.exports = { SignUp, SignIn, GoogleCallback, GitHubCallback, AuthCheck, isAuthenticated };
