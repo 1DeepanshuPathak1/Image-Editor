@@ -41,6 +41,39 @@ class SongRecommender {
         }
     }
 
+
+    async getArtistInfo(artistId) {
+        await this.ensureAuthenticated();
+
+        try {
+            const response = await this.spotifyApi.getArtist(artistId);
+
+            if (!response || !response.body) {
+                throw new Error('No artist data received from Spotify');
+            }
+
+            return {
+                id: response.body.id,
+                name: response.body.name,
+                images: response.body.images,
+                genres: response.body.genres,
+                popularity: response.body.popularity,
+                external_urls: response.body.external_urls
+            };
+        } catch (error) {
+            console.error('Error fetching artist info from Spotify:', error);
+
+            if (error.statusCode === 404) {
+                return null;
+            }
+            if (error.statusCode === 429) {
+                throw new Error('Rate limit exceeded when fetching artist info');
+            }
+
+            throw error;
+        }
+    }
+
     async refreshSpotifyToken() {
         try {
             const data = await this.spotifyApi.clientCredentialsGrant();
@@ -67,7 +100,7 @@ class SongRecommender {
         try {
             const searchOptions = {
                 limit: 30,
-                offset: 0, 
+                offset: 0,
             };
             if (!searchQuery || searchQuery.trim() === '') {
                 throw new Error('Search query cannot be empty');

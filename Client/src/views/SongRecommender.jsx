@@ -7,6 +7,8 @@ import { ArtistSearch, CustomSelect, genreOptions, moodOptions, popularityOption
 import { useImageHandling } from '../Components/SongRecComp/ImageHandling';
 import { useSongHandling } from '../Components/SongRecComp/SongHandling';
 import SongScoreDisplay from '../Components/SongRecComp/SongScoreDisplay';
+import ArtistPreferences from '../Components/SongRecComp/ArtistPreferences';
+
 
 const SongRecommenderPage = () => {
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -224,6 +226,13 @@ const SongRecommenderPage = () => {
         setLikedSongs(prev => prev.filter(item => item.songId !== songId));
         setDislikedSongs(prev => prev.filter(item => item.songId !== songId));
     };
+    const handleArtistRemove = (artistId, type) => {
+        if (type === 'liked') {
+            setLikedArtists(prev => prev.filter(artist => artist.artistId !== artistId));
+        } else {
+            setDislikedArtists(prev => prev.filter(artist => artist.artistId !== artistId));
+        }
+    };
 
     return (
         <div className="sr-page-container">
@@ -367,6 +376,12 @@ const SongRecommenderPage = () => {
                                             </div>
                                         </div>
                                     )}
+                                    <ArtistPreferences
+                                        likedArtists={likedArtists}
+                                        dislikedArtists={dislikedArtists}
+                                        onArtistRemove={handleArtistRemove}
+                                        userId={userId}
+                                    />
                                 </div>
 
                                 {suggestedSong && (
@@ -440,7 +455,7 @@ const SongRecommenderPage = () => {
                             likedItems={likedSongs}
                             dislikedItems={dislikedSongs}
                             onDeleteItem={handleDeleteItem}
-                            userId={userId}  
+                            userId={userId}
                         />
                     </div>
                 </div>

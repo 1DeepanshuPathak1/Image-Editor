@@ -1,6 +1,6 @@
-// AdvancedOptions.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search, ChevronDown, Loader } from 'lucide-react';
+import './css/ArtistSearch.css';
 
 export const genreOptions = [
     { value: "pop", label: "Pop" },

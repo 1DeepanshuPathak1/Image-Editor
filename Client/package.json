@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "color-thief-react": "^1.0.2",
     "fortawesome": "^0.0.1-security",
+    "framer-motion": "^12.4.3",
     "lucide-react": "^0.474.0",
     "next": "^15.1.6",
     "node-vibrant": "^4.0.3",

@@ -37,6 +37,52 @@ router.delete('/history/:userId/:songId', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete item' });
     }
 });
+router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
+    try {
+        const { userId, artistId } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
+        const preferences = await UserMusicPreferences.findOne({ userId });
+        if (!preferences) {
+            return res.status(404).json({ error: 'User preferences not found' });
+        }
+
+        // Remove artist from both liked and disliked arrays
+        preferences.likedArtists = preferences.likedArtists.filter(artist => 
+            artist.artistId !== artistId
+        );
+        preferences.dislikedArtists = preferences.dislikedArtists.filter(artist => 
+            artist.artistId !== artistId
+        );
+
+        await preferences.save();
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error removing artist:', error);
+        res.status(500).json({ error: 'Failed to remove artist' });
+    }
+});
+
+router.get('/artist/:artistId', async (req, res) => {
+    try {
+        await songRecommender.initialized;
+        const { artistId } = req.params;
+        
+        const artistData = await songRecommender.getArtistInfo(artistId);
+        
+        if (!artistData) {
+            return res.status(404).json({ error: 'Artist not found' });
+        }
+        
+        res.json(artistData);
+    } catch (error) {
+        console.error('Error fetching artist:', error);
+        res.status(500).json({ error: 'Failed to fetch artist information' });
+    }
+});
 
 router.get('/preferences/:userId', async (req, res) => {
     try {

@@ -1,0 +1,118 @@
+
+.sr-artist-search {
+    position: relative;
+    width: 100%;
+}
+
+.sr-search-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.sr-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 40%;
+    transform: translateY(-50%);
+    color: #666;
+    pointer-events: none;
+}
+
+.sr-search-input {
+    width: 88%;
+    height: 40px;
+    padding-left: 30px;
+    border: 1px solid #232326;
+    border-radius: 6px;
+    background-color: #121212;
+    color: white;
+    margin-right: 10px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.sr-search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.sr-artist-dropdown {
+    position: absolute;
+    width: 100%;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background-color: #1a1a1a;
+    border: 1px solid #232326;
+    border-radius: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.sr-artist-option {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #232326;
+}
+
+.sr-artist-option:last-child {
+    border-bottom: none;
+}
+
+.sr-artist-option:hover {
+    background-color: #27272a;
+}
+
+.sr-artist-option-image {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 12px;
+    object-fit: cover;
+    margin: 0;
+}
+
+.sr-artist-option-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.sr-artist-option-name {
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.sr-artist-option-followers {
+    color: #666;
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.sr-dropdown-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    color: #666;
+}
+
+.sr-dropdown-loading .sr-spinner {
+    animation: spin 1s linear infinite;
+}
+
+.sr-no-results {
+    padding: 12px;
+    color: #666;
+    text-align: center;
+    font-size: 14px;
+}
