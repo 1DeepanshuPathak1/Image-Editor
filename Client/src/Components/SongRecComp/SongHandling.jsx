@@ -88,15 +88,12 @@ export const useSongHandling = (
                 throw new Error('No new songs available. Try adjusting your preferences.');
             }
 
-            
 
             const currentSong = filteredSongs[0];
             setChatResponse(data.description || 'Here\'s a song that matches your image...');
             setSuggestedSong(currentSong);
             setImageAnalysis(data.analysis);
 
-            // Update history in the database is handled by the server
-            // We just need to update the local state
             const historyItem = {
                 id: Date.now(),
                 song: currentSong,

@@ -113,7 +113,7 @@ const SongRecommenderPage = () => {
                 uri: song.uri,
                 preview_url: song.preview_url,
                 external_url: song.external_url,
-                album_art: song.album_art, // Ensure album_art is at the root level
+                album_art: song.album_art,
                 genre: song.genre,
                 mood: imageAnalysis?.mood
             };
@@ -129,7 +129,7 @@ const SongRecommenderPage = () => {
                     type,
                     scope,
                     userId,
-                    songData  // Pass the restructured songData
+                    songData
                 })
             });
 
@@ -152,7 +152,7 @@ const SongRecommenderPage = () => {
                             name: song.name,
                             artist: song.artist,
                             artistId: song.artist_id,
-                            album_art: song.album_art, // Add album_art here
+                            album_art: song.album_art,
                             timestamp: new Date()
                         }];
                     });
@@ -165,7 +165,7 @@ const SongRecommenderPage = () => {
                             name: song.name,
                             artist: song.artist,
                             artistId: song.artist_id,
-                            album_art: song.album_art, // Add album_art here
+                            album_art: song.album_art,
                             timestamp: new Date()
                         }];
                     });
@@ -215,6 +215,15 @@ const SongRecommenderPage = () => {
     useEffect(() => {
         setHistory([]);
     }, []);
+
+    const handleDeleteItem = async (songId) => {
+        setHistory(prev => prev.filter(item => {
+            const itemId = item.song?.uri?.split(':')[2] || item.id;
+            return itemId !== songId;
+        }));
+        setLikedSongs(prev => prev.filter(item => item.songId !== songId));
+        setDislikedSongs(prev => prev.filter(item => item.songId !== songId));
+    };
 
     return (
         <div className="sr-page-container">
@@ -430,12 +439,8 @@ const SongRecommenderPage = () => {
                             recentItems={history}
                             likedItems={likedSongs}
                             dislikedItems={dislikedSongs}
-                            onDeleteItem={(id) => {
-                                setHistory(prev => prev.filter(item => item.id !== id));
-                                fetch(`http://localhost:3000/api/songs/history/${userId}/${id}`, {
-                                    method: 'DELETE'
-                                });
-                            }}
+                            onDeleteItem={handleDeleteItem}
+                            userId={userId}  
                         />
                     </div>
                 </div>

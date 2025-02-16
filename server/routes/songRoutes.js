@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Get user preferences
-router.delete('/preferences/:userId/songs/:songId', async (req, res) => {
+router.delete('/history/:userId/:songId', async (req, res) => {
     try {
         const { userId, songId } = req.params;
         
@@ -23,15 +23,18 @@ router.delete('/preferences/:userId/songs/:songId', async (req, res) => {
         }
 
         // Remove song from both liked and disliked arrays
-        preferences.likedSongs = preferences.likedSongs.filter(song => song.songId !== songId);
-        preferences.dislikedSongs = preferences.dislikedSongs.filter(song => song.songId !== songId);
+        preferences.likedSongs = preferences.likedSongs.filter(song => 
+            song.songId !== songId && song.uri?.split(':')[2] !== songId
+        );
+        preferences.dislikedSongs = preferences.dislikedSongs.filter(song => 
+            song.songId !== songId && song.uri?.split(':')[2] !== songId
+        );
 
         await preferences.save();
-
         res.status(200).json({ success: true });
     } catch (error) {
-        console.error('Error deleting song from preferences:', error);
-        res.status(500).json({ error: 'Failed to delete song from preferences' });
+        console.error('Error deleting item:', error);
+        res.status(500).json({ error: 'Failed to delete item' });
     }
 });
 
@@ -59,24 +62,6 @@ router.get('/preferences/:userId', async (req, res) => {
     } catch (error) {
         console.error('Error fetching user preferences:', error);
         res.status(500).json({ error: 'Failed to fetch user preferences' });
-    }
-});
-
-// Delete item from history (for recent suggestions)
-router.delete('/history/:userId/:songId', async (req, res) => {
-    try {
-        const { userId, songId } = req.params;
-
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ error: 'Invalid user ID' });
-        }
-
-        // Since we're now handling recent suggestions in memory,
-        // we just need to return success
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error deleting history item:', error);
-        res.status(500).json({ error: 'Failed to delete history item' });
     }
 });
 

@@ -5,7 +5,103 @@ import './css/FeedbackTabs.css';
 const ITEMS_PER_PAGE = 5;
 const MAX_ITEMS = 50;
 
-const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislikedItems, onDeleteItem }) => {
+const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
+  const getSongData = () => {
+    if (tabType === 'recent') {
+      return item.song || item;
+    }
+    
+    return {
+      name: item.name,
+      artist: item.artist,
+      uri: `spotify:track:${item.songId}`,
+      album_art: item.songData?.album_art || item.album_art,
+      external_url: item.external_url
+    };
+  };
+
+  const songData = getSongData();
+  
+  if (!songData) {
+    console.warn('Invalid song data received:', item);
+    return null;
+  }
+
+  const handleDelete = async () => {
+    const songId = item.songId || (songData.uri && songData.uri.split(':')[2]);
+    if (!songId) {
+      console.error('No valid song ID found for deletion');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`http://localhost:3000/api/songs/history/${userId}/${songId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete song');
+      }
+
+      onDelete(songId);
+    } catch (error) {
+      console.error('Error deleting song:', error);
+    }
+  };
+
+  const albumArtUrl = songData.album_art || 
+                     (item.songData && item.songData.album_art) || 
+                     (item.song && item.song.album_art) || 
+                     '/default-album-art.jpg';
+
+  return (
+    <div className="sr-history-item">
+      <button
+        className="sr-delete-button"
+        onClick={handleDelete}
+        aria-label="Delete recommendation"
+      >
+        <X size={16} />
+      </button>
+
+      <div className="sr-history-content">
+        <div className="sr-song-info">
+          <img
+            src={albumArtUrl}
+            alt={`${songData.name || 'Unknown'} album art`}
+            className="sr-history-image"
+          />
+          <div className="sr-text-content">
+            <h4 className="sr-text-truncate" data-tooltip={songData.name}>
+              {songData.name || 'Unknown Track'}
+            </h4>
+            <p className="sr-text-truncate">
+              {songData.artist || 'Unknown Artist'}
+            </p>
+          </div>
+        </div>
+
+        <div className="sr-divider"></div>
+
+        <div className="sr-player-container">
+          {songData.uri && (
+            <iframe
+              src={`https://open.spotify.com/embed/track/${songData.uri.split(':')[2]}`}
+              width="100%"
+              height="80"
+              frameBorder="0"
+              allowtransparency="true"
+              allow="encrypted-media"
+              className="sr-spotify-player"
+            ></iframe>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislikedItems, onDeleteItem, userId }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const getCurrentItems = () => {
@@ -28,7 +124,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         items = [];
     }
 
-    // Keep only the most recent MAX_ITEMS
     items = items.slice(0, MAX_ITEMS);
 
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -137,6 +232,7 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
                   item={item}
                   onDelete={onDeleteItem}
                   tabType={activeTab}
+                  userId={userId}
                 />
               ))}
               <Pagination />
@@ -147,83 +243,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
               {activeTab === 'liked' && 'No liked songs yet'}
               {activeTab === 'disliked' && 'No disliked songs yet'}
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const RecommendationItem = ({ item, onDelete, tabType }) => {
-  // Handle different data structures based on tab type
-  const getSongData = () => {
-    if (tabType === 'recent') {
-      return item.song || item;
-    }
-    
-    // For liked/disliked tabs
-    return {
-      name: item.name,
-      artist: item.artist,
-      uri: `spotify:track:${item.songId}`,
-      album_art: item.songData?.album_art || item.album_art,
-      external_url: item.external_url
-    };
-  };
-
-  const songData = getSongData();
-  
-  if (!songData) {
-    console.warn('Invalid song data received:', item);
-    return null;
-  }
-
-  // Get the correct album art URL
-  const albumArtUrl = songData.album_art || 
-                     (item.songData && item.songData.album_art) || 
-                     (item.song && item.song.album_art) || 
-                     '/default-album-art.jpg';
-
-  return (
-    <div className="sr-history-item">
-      <button
-        className="sr-delete-button"
-        onClick={() => onDelete(item.id || item.songId)}
-        aria-label="Delete recommendation"
-      >
-        <X size={16} />
-      </button>
-
-      <div className="sr-history-content">
-        <div className="sr-song-info">
-          <img
-            src={albumArtUrl}
-            alt={`${songData.name || 'Unknown'} album art`}
-            className="sr-history-image"
-          />
-          <div className="sr-text-content">
-            <h4 className="sr-text-truncate" data-tooltip={songData.name}>
-              {songData.name || 'Unknown Track'}
-            </h4>
-            <p className="sr-text-truncate">
-              {songData.artist || 'Unknown Artist'}
-            </p>
-          </div>
-        </div>
-
-        <div className="sr-divider"></div>
-
-        <div className="sr-player-container">
-          {songData.uri && (
-            <iframe
-              src={`https://open.spotify.com/embed/track/${songData.uri.split(':')[2]}`}
-              width="100%"
-              height="80"
-              frameBorder="0"
-              allowtransparency="true"
-              allow="encrypted-media"
-              className="sr-spotify-player"
-            ></iframe>
           )}
         </div>
       </div>
