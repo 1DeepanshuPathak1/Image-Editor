@@ -99,19 +99,20 @@ class SongRecommender {
     async findSuitableTrack(searchQuery, preferences = {}, skipCount = 0, retryCount = 0) {
         try {
             const searchOptions = {
-                limit: 30,
-                offset: 0,
+                limit: 50,
+                offset: skipCount,
             };
+    
             if (!searchQuery || searchQuery.trim() === '') {
                 throw new Error('Search query cannot be empty');
             }
-
+    
             let queryParts = [searchQuery.trim()];
-
+    
             if (preferences.genre && retryCount === 0) {
                 queryParts.push(`genre:${preferences.genre}`);
             }
-
+    
             if (preferences.artist && retryCount === 0) {
                 if (typeof preferences.artist === 'string') {
                     queryParts.push(`artist:${preferences.artist}`);
@@ -124,58 +125,53 @@ class SongRecommender {
                     }
                 }
             }
-
+    
             let finalQuery = queryParts.filter(part => part && part.trim() !== '').join(' ');
-
+    
             if (!finalQuery) {
                 throw new Error('No valid search criteria provided');
             }
-
-            if (preferences.language) {
-                const marketMap = {
-                    'en': ['US', 'GB', 'AU'],
-                    'es': ['ES', 'MX', 'AR'],
-                    'fr': ['FR', 'CA'],
-                    'de': ['DE', 'AT'],
-                    'it': ['IT'],
-                    'pt': ['PT', 'BR'],
-                    'ko': ['KR'],
-                    'ja': ['JP'],
-                    'hi': ['IN'],
-                    'ar': ['SA', 'AE']
-                };
-
-                if (marketMap[preferences.language]) {
-                    searchOptions.market = marketMap[preferences.language][0];
-                }
+    
+            // Add randomization to the search query to get different results
+            if (skipCount > 0) {
+                const randomWords = ['remix', 'live', 'acoustic', 'cover', 'instrumental', 'extended'];
+                const randomWord = randomWords[Math.floor(Math.random() * randomWords.length)];
+                finalQuery = `${finalQuery} NOT ${randomWord}`;
             }
-
+    
             const searchResults = await this.spotifyApi.searchTracks(finalQuery, searchOptions);
-
+    
             if (!searchResults.body.tracks?.items?.length) {
                 if (retryCount < this.maxRetries) {
                     return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
                 }
                 throw new Error('No tracks found with the current search criteria');
             }
-
-            let tracks = searchResults.body.tracks.items.map(track => ({
-                name: track.name,
-                artist: track.artists[0].name,
-                artist_id: track.artists[0].id,
-                uri: track.uri,
-                preview_url: track.preview_url,
-                external_url: track.external_urls.spotify,
-                album_art: track.album.images[0]?.url,
-                popularity: track.popularity,
-                genre: preferences.genre || '',
-                mood: preferences.mood || '',
-                score: track.popularity
-            }));
-
-            console.log('Initial tracks with popularity scores:',
-                tracks.map(t => ({ name: t.name, score: t.score })));
-
+    
+            let tracks = searchResults.body.tracks.items
+                // Filter out previously suggested songs
+                .filter(track => !preferences.previouslySuggested?.includes(track.uri))
+                .map(track => ({
+                    name: track.name,
+                    artist: track.artists[0].name,
+                    artist_id: track.artists[0].id,
+                    uri: track.uri,
+                    preview_url: track.preview_url,
+                    external_url: track.external_urls.spotify,
+                    album_art: track.album.images[0]?.url,
+                    popularity: track.popularity,
+                    genre: preferences.genre || '',
+                    mood: preferences.mood || '',
+                    score: track.popularity
+                }));
+    
+            if (tracks.length === 0) {
+                if (retryCount < this.maxRetries) {
+                    return this.findSuitableTrack(searchQuery, preferences, skipCount + 30, retryCount + 1);
+                }
+                throw new Error('No new tracks available. Try different preferences.');
+            }
+    
             const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
                 tracks,
                 {
@@ -185,30 +181,14 @@ class SongRecommender {
                     dislikedSongs: preferences.dislikedSongs || []
                 }
             );
-
-            console.log('Ranked tracks with final scores:',
-                rankedTracks.map(t => ({ name: t.name, score: t.score })));
-
-            if (rankedTracks.length === 0) {
-                if (retryCount < this.maxRetries) {
-                    return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
-                }
-                throw new Error('No suitable tracks found after filtering');
-            }
-
-            const selectedTrack = rankedTracks[skipCount % rankedTracks.length];
-
-            console.log('Selected track:', selectedTrack.name, 'Score:', selectedTrack.score);
-
-            SongRecommendationSystem.markSongAsSuggested(selectedTrack.uri);
-
-            return selectedTrack;
+    
+            return rankedTracks;
         } catch (error) {
             if (retryCount < this.maxRetries) {
                 console.log(`Error in attempt ${retryCount + 1}, retrying with broader search`);
                 return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
             }
-            console.error('Error finding suitable track:', error);
+            console.error('Error finding suitable tracks:', error);
             throw error;
         }
     }
@@ -235,8 +215,8 @@ class SongRecommender {
 
         for (const strategy of retryStrategies) {
             try {
-                const result = await strategy();
-                if (result) return result;
+                const results = await strategy();
+                if (results && results.length > 0) return results;
             } catch (error) {
                 console.warn('Retry strategy failed:', error);
                 continue;
@@ -250,7 +230,6 @@ class SongRecommender {
         try {
             await this.ensureAuthenticated();
 
-            // Combine image analysis with user preferences
             const moodSearchTerms = {
                 'upbeat': 'happy upbeat',
                 'peaceful': 'peaceful calm',
@@ -264,20 +243,17 @@ class SongRecommender {
                 'happy': 'happy cheerful'
             };
 
-            // Prioritize user-selected mood if available
             const baseQuery = preferences.mood ?
                 moodSearchTerms[preferences.mood] :
                 moodSearchTerms[imageAnalysis.mood] || '';
 
-            // Add genre from either user preference or image analysis
             const genreHint = preferences.genre || imageAnalysis.genre_hints?.[0] || '';
             const searchQuery = `${baseQuery} ${genreHint}`.trim();
 
-            console.log('Search query:', searchQuery, 'Preferences:', preferences);
 
             try {
-                const track = await this.findSuitableTrack(searchQuery, preferences, skipCount);
-                return track;
+                const tracks = await this.findSuitableTrack(searchQuery, preferences, skipCount);
+                return tracks; // Now returns the full list of ranked tracks
             } catch (error) {
                 console.log('Initial search failed, trying retry strategies');
                 return await this.retrySearch(searchQuery, preferences, skipCount);
@@ -285,7 +261,7 @@ class SongRecommender {
 
         } catch (error) {
             console.error('Recommendation error:', error);
-            return this.getFallbackTrack();
+            return [this.getFallbackTrack()]; // Return fallback track in an array
         }
     }
 

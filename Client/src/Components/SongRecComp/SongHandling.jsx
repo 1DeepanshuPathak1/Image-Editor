@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
+// SongHandling.jsx - Update the handleSuggestSong function
 export const useSongHandling = (
     selectedImage,
     showAdvanced,
@@ -23,24 +24,15 @@ export const useSongHandling = (
     const [imageAnalysis, setImageAnalysis] = useState(null);
     const [skipCount, setSkipCount] = useState(0);
     const [cachedSongs, setCachedSongs] = useState([]);
+    const [currentIndex, setCurrentIndex] = useState(0);
     const audioRef = useRef(null);
-
-    // Simple function to check if a song exists in an array
-    const isSongInList = (song, list) => {
-        if (!Array.isArray(list)) return false;
-        for (let i = 0; i < list.length; i++) {
-            if (list[i].songId === song.uri.split(':')[2]) {
-                return true;
-            }
-        }
-        return false;
-    };
+    const OFFSET_INCREMENT = 15;
 
     const handleSuggestSong = async () => {
         setIsLoading(true);
         setError(null);
-        setSkipCount(0);
-
+        setCurrentIndex(0);
+        
         try {
             const base64Response = await fetch(selectedImage);
             const blob = await base64Response.blob();
@@ -59,47 +51,53 @@ export const useSongHandling = (
                 formData.append('preferences', JSON.stringify(preferences));
             }
 
-            // Add userId to the request if available
             if (userId) {
                 formData.append('userId', userId);
             }
 
-            const apiResponse = await fetch('http://localhost:3000/api/songs/recommend-song', {
+            // Update the URL to use the correct port
+            const apiResponse = await fetch(`http://localhost:3000/api/songs/recommend-song?skip=${skipCount}`, {
                 method: 'POST',
                 body: formData,
             });
 
-            const data = await apiResponse.json();
-
             if (!apiResponse.ok) {
-                throw new Error(data.error || 'Failed to get song recommendation');
+                const errorText = await apiResponse.text(); // First get the raw response text
+                let errorMessage;
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error;
+                } catch (e) {
+                    errorMessage = errorText || 'Failed to get song recommendation';
+                }
+                throw new Error(errorMessage);
             }
 
-            const songsWithScores = data.rankedSongs || [{ ...data.song, score: 100 }];
-
-            // Filter out liked/disliked songs
-            const filteredSongs = songsWithScores.filter(song => 
-                !isSongInList(song, likedSongs) && !isSongInList(song, dislikedSongs)
-            );
-
-            setCachedSongs(filteredSongs);
-
-            if (filteredSongs.length === 0) {
-                throw new Error('No new songs available. Try adjusting your preferences.');
+            const responseText = await apiResponse.text(); // Get the raw response text
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error('Failed to parse response:', responseText);
+                throw new Error('Invalid response from server');
+            }
+            
+            if (!data.rankedSongs || data.rankedSongs.length === 0) {
+                throw new Error('No songs received from server');
             }
 
-
-            const currentSong = filteredSongs[0];
+            setCachedSongs(data.rankedSongs);
             setChatResponse(data.description || 'Here\'s a song that matches your image...');
-            setSuggestedSong(currentSong);
+            setSuggestedSong(data.rankedSongs[0]);
             setImageAnalysis(data.analysis);
 
             const historyItem = {
                 id: Date.now(),
-                song: currentSong,
+                song: data.rankedSongs[0],
                 imageUrl: selectedImage,
                 timestamp: new Date().toISOString(),
-                score: currentSong.score || 100
+                score: data.rankedSongs[0].score,
+                analysis: data.analysis
             };
 
             setHistory(prev => {
@@ -109,109 +107,64 @@ export const useSongHandling = (
 
         } catch (err) {
             console.error('Error in handleSuggestSong:', err);
-            setError(
-                err.message === 'Failed to fetch'
-                    ? 'Cannot connect to the server. Please check your connection and try again.'
-                    : err.message
-            );
+            setError(err.message);
         } finally {
             setIsLoading(false);
         }
     };
 
     const handleRegenerateSong = async () => {
-        if (cachedSongs.length > skipCount + 1) {
-            const nextSong = cachedSongs[skipCount + 1];
-
-            if (!isSongInList(nextSong, likedSongs) && !isSongInList(nextSong, dislikedSongs)) {
-                setSuggestedSong(nextSong);
-                setSkipCount(prev => prev + 1);
-
-                const historyItem = {
-                    id: Date.now(),
-                    song: nextSong,
-                    imageUrl: selectedImage,
-                    timestamp: new Date().toISOString(),
-                    score: nextSong.score
-                };
-
-                setHistory(prev => {
-                    const newHistory = [historyItem, ...prev];
-                    return newHistory.slice(0, maxHistoryItems);
-                });
-
-                return;
-            }
-        }
-
+        if (isLoading) return;
         setIsLoading(true);
         setError(null);
-
+    
         try {
-            const base64Response = await fetch(selectedImage);
-            const blob = await base64Response.blob();
-
-            const formData = new FormData();
-            formData.append('image', blob, 'image.jpg');
-
-            if (showAdvanced) {
-                const preferences = {
-                    genre,
-                    mood,
-                    popularity,
-                    language,
-                    artist: selectedArtist ? selectedArtist.id : null
-                };
-                formData.append('preferences', JSON.stringify(preferences));
+            const nextIndex = currentIndex + 1;
+            
+            if (nextIndex >= cachedSongs.length) {
+                setSkipCount(prev => prev + OFFSET_INCREMENT);
+                await handleSuggestSong();
+                return;
             }
-
-            // Add userId to the request if available
-            if (userId) {
-                formData.append('userId', userId);
+    
+            const nextSong = cachedSongs[nextIndex];
+            if (!nextSong) {
+                throw new Error('No more songs available. Try different preferences.');
             }
-
-            const apiResponse = await fetch(`http://localhost:3000/api/songs/recommend-song?skip=${skipCount + 1}`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            const data = await apiResponse.json();
-
-            if (!apiResponse.ok) {
-                throw new Error(data.error || 'Failed to regenerate song recommendation');
-            }
-
-            const newSong = data.song;
-            if (isSongInList(newSong, likedSongs) || isSongInList(newSong, dislikedSongs)) {
-                throw new Error('Received already rated song. Try regenerating again.');
-            }
-
-            newSong.score = newSong.score || Math.max(20, 100 - (skipCount * 15));
-
-            setChatResponse(data.description || 'Here\'s another song that matches your image...');
-            setSuggestedSong(newSong);
-            setSkipCount(prev => prev + 1);
-
+    
+            setSuggestedSong(nextSong);
+            setCurrentIndex(nextIndex);
+    
             const historyItem = {
                 id: Date.now(),
-                song: newSong,
+                song: nextSong,
                 imageUrl: selectedImage,
                 timestamp: new Date().toISOString(),
-                score: newSong.score
+                score: nextSong.score,
+                analysis: imageAnalysis
             };
-
+    
             setHistory(prev => {
                 const newHistory = [historyItem, ...prev];
                 return newHistory.slice(0, maxHistoryItems);
             });
-
+    
         } catch (err) {
             console.error('Error regenerating song:', err);
-            setError(err.message || 'Failed to regenerate song recommendation');
+            setError(err.message);
         } finally {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (suggestedSong?.preview_url && audioRef.current) {
+            audioRef.current.src = suggestedSong.preview_url;
+            audioRef.current.play().catch(error => {
+                console.warn('Error playing audio:', error);
+            });
+        }
+    }, [suggestedSong]);
 
     const shareSong = async (song) => {
         if (navigator.share) {
@@ -228,15 +181,6 @@ export const useSongHandling = (
             await navigator.clipboard.writeText(song.external_url);
         }
     };
-
-    useEffect(() => {
-        if (suggestedSong?.preview_url && audioRef.current) {
-            audioRef.current.src = suggestedSong.preview_url;
-            audioRef.current.play().catch(error => {
-                console.warn('Error playing audio:', error);
-            });
-        }
-    }, [suggestedSong]);
 
     return {
         chatResponse,

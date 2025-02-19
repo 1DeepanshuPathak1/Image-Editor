@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Get user preferences
+
 router.delete('/history/:userId/:songId', async (req, res) => {
     try {
         const { userId, songId } = req.params;
@@ -22,7 +22,7 @@ router.delete('/history/:userId/:songId', async (req, res) => {
             return res.status(404).json({ error: 'User preferences not found' });
         }
 
-        // Remove song from both liked and disliked arrays
+        
         preferences.likedSongs = preferences.likedSongs.filter(song => 
             song.songId !== songId && song.uri?.split(':')[2] !== songId
         );
@@ -50,7 +50,7 @@ router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
             return res.status(404).json({ error: 'User preferences not found' });
         }
 
-        // Remove artist from both liked and disliked arrays
+        
         preferences.likedArtists = preferences.likedArtists.filter(artist => 
             artist.artistId !== artistId
         );
@@ -111,7 +111,7 @@ router.get('/preferences/:userId', async (req, res) => {
     }
 });
 
-// Handle feedback (like/dislike)
+
 router.post('/feedback', async (req, res) => {
     try {
         const { songId, artistId, type, scope, userId, songData } = req.body;
@@ -197,7 +197,7 @@ router.post('/feedback', async (req, res) => {
     }
 });
 
-// Search artists
+
 router.get('/search-artists', async (req, res) => {
     try {
         await songRecommender.initialized;
@@ -215,7 +215,7 @@ router.get('/search-artists', async (req, res) => {
     }
 });
 
-// Get song recommendation
+
 router.post('/recommend-song', upload.single('image'), async (req, res) => {
     try {
         await songRecommender.initialized;
@@ -230,6 +230,28 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
 
         const preferences = req.body.preferences ? JSON.parse(req.body.preferences) : {};
         const userId = req.body.userId;
+        const skipCount = parseInt(req.query.skip) || 0;
+
+        // Keep track of previously suggested songs
+        if (!req.app.locals.suggestedSongs) {
+            req.app.locals.suggestedSongs = new Set();
+        }
+
+        if (!req.app.locals.lastImageHash) {
+            req.app.locals.lastImageHash = null;
+        }
+
+        // Generate a simple hash of the image buffer
+        const imageHash = require('crypto')
+            .createHash('md5')
+            .update(req.file.buffer)
+            .digest('hex');
+
+        // Reset suggested songs if it's a new image
+        if (imageHash !== req.app.locals.lastImageHash) {
+            req.app.locals.suggestedSongs.clear();
+            req.app.locals.lastImageHash = imageHash;
+        }
 
         if (userId && mongoose.Types.ObjectId.isValid(userId)) {
             const userPrefs = await UserMusicPreferences.findOne({ userId });
@@ -241,7 +263,6 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             }
         }
 
-        const skipCount = parseInt(req.query.skip) || 0;
         const imageAnalysis = await songRecommender.analyzeImage(req.file.buffer);
 
         if (!imageAnalysis) {
@@ -249,35 +270,37 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         }
 
         const description = songRecommender.generateDescription(imageAnalysis);
-        let recommendations = await songRecommender.getSongRecommendation(
+        
+        // Add previously suggested songs to preferences to avoid recommending them again
+        preferences.previouslySuggested = Array.from(req.app.locals.suggestedSongs);
+
+        const recommendations = await songRecommender.getSongRecommendation(
             imageAnalysis,
             skipCount,
             preferences
         );
 
-        // Use the recommendation system to rank and filter songs
-        if (Array.isArray(recommendations)) {
-            recommendations = await songRecommendationSystem.rankAndFilterSongs(recommendations, preferences);
-        } else if (recommendations) {
-            recommendations.score = songRecommendationSystem.calculateSongScore(recommendations, preferences);
-            songRecommendationSystem.markSongAsSuggested(recommendations.uri);
+        if (!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) {
+            return res.status(404).json({ error: 'No suitable songs found' });
         }
 
-        if (recommendations) {
-            return res.status(200).json({
-                description,
-                song: Array.isArray(recommendations) ? recommendations[0] : recommendations,
-                analysis: {
-                    mood: imageAnalysis.mood,
-                    energy_level: imageAnalysis.energy_level,
-                    valence: imageAnalysis.valence,
-                    genre_hints: imageAnalysis.genre_hints,
-                    predictions: imageAnalysis.predictions
-                }
-            });
-        }
+        // Add new songs to the suggested set
+        recommendations.forEach(song => {
+            req.app.locals.suggestedSongs.add(song.uri);
+        });
 
-        return res.status(404).json({ error: 'No suitable song found' });
+        return res.status(200).json({
+            description,
+            song: recommendations[0],
+            rankedSongs: recommendations,
+            analysis: {
+                mood: imageAnalysis.mood,
+                energy_level: imageAnalysis.energy_level,
+                valence: imageAnalysis.valence,
+                genre_hints: imageAnalysis.genre_hints,
+                predictions: imageAnalysis.predictions
+            }
+        });
 
     } catch (error) {
         console.error('Error in recommend-song route:', error);
@@ -288,56 +311,6 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
     }
 });
 
-// Regenerate song recommendation
-router.post('/regenerate-song', async (req, res) => {
-    try {
-        await songRecommender.initialized;
-        const { imageAnalysis, skipCount = 0, preferences, userId } = req.body;
-
-        if (!imageAnalysis) {
-            return res.status(400).json({ error: 'No image analysis provided' });
-        }
-
-        let userPreferences = { ...preferences };
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            const userPrefs = await UserMusicPreferences.findOne({ userId });
-            if (userPrefs) {
-                userPreferences = {
-                    ...userPreferences,
-                    likedSongs: userPrefs.likedSongs || [],
-                    dislikedSongs: userPrefs.dislikedSongs || [],
-                    likedArtists: userPrefs.likedArtists || [],
-                    dislikedArtists: userPrefs.dislikedArtists || []
-                };
-            }
-        }
-
-        let song = await songRecommender.getNextBestSong(
-            imageAnalysis,
-            skipCount,
-            userPreferences
-        );
-
-        if (!song) {
-            return res.status(404).json({ error: 'No suitable song found' });
-        }
-
-        // Calculate song score and mark as suggested
-        song.score = songRecommendationSystem.calculateSongScore(song, userPreferences);
-        songRecommendationSystem.markSongAsSuggested(song.uri);
-
-        return res.status(200).json({ song });
-
-    } catch (error) {
-        console.error('Error in regenerate-song route:', error);
-        return res.status(500).json({
-            error: 'Failed to regenerate song recommendation',
-            details: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// Get available languages
 router.get('/languages', (_req, res) => {
     const languages = [
         { code: 'en', name: 'English' },
@@ -354,7 +327,7 @@ router.get('/languages', (_req, res) => {
     res.json({ languages });
 });
 
-// Get available genres
+
 router.get('/genres', async (_req, res) => {
     try {
         const genres = await songRecommender.getAvailableGenres();
