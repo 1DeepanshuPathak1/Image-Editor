@@ -9,7 +9,6 @@ class SongRecommender {
         if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
             throw new Error('Missing required Spotify credentials in environment variables');
         }
-
         this.spotifyApi = new SpotifyWebApi({
             clientId: process.env.SPOTIFY_CLIENT_ID,
             clientSecret: process.env.SPOTIFY_CLIENT_SECRET
@@ -18,7 +17,6 @@ class SongRecommender {
         this.initialized = this.initialize();
         this.maxRetries = 3;
     }
-
     async initialize() {
         try {
             await this.refreshSpotifyToken();
@@ -28,7 +26,6 @@ class SongRecommender {
             throw error;
         }
     }
-
     async ensureAuthenticated() {
         try {
             const token = this.spotifyApi.getAccessToken();
@@ -40,8 +37,6 @@ class SongRecommender {
             throw error;
         }
     }
-
-
     async getArtistInfo(artistId) {
         await this.ensureAuthenticated();
 
@@ -51,7 +46,6 @@ class SongRecommender {
             if (!response || !response.body) {
                 throw new Error('No artist data received from Spotify');
             }
-
             return {
                 id: response.body.id,
                 name: response.body.name,
@@ -73,18 +67,21 @@ class SongRecommender {
             throw error;
         }
     }
-
     async refreshSpotifyToken() {
         try {
             const data = await this.spotifyApi.clientCredentialsGrant();
             this.spotifyApi.setAccessToken(data.body['access_token']);
             console.log('Spotify token refreshed successfully');
         } catch (error) {
-            console.error('Error refreshing Spotify token:', error);
+            console.error('Error refreshing Spotify token:', error.statusCode, error.message);
+            if (error.statusCode === 429) {
+                console.log('Rate limited, waiting 5 seconds before retrying...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                return this.refreshSpotifyToken();
+            }
             throw new Error('Failed to authenticate with Spotify: ' + error.message);
         }
     }
-
     async searchArtists(query) {
         await this.ensureAuthenticated();
         try {
@@ -95,61 +92,78 @@ class SongRecommender {
             throw error;
         }
     }
-
-    async findSuitableTrack(searchQuery, preferences = {}, skipCount = 0, retryCount = 0) {
+    async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0) {
         try {
+            await this.ensureAuthenticated();
             const searchOptions = {
                 limit: 50,
                 offset: skipCount,
             };
     
-            if (!searchQuery || searchQuery.trim() === '') {
-                throw new Error('Search query cannot be empty');
+            // Important: Set correct market based on language preference
+            const marketMap = {
+                'es': 'ES', // Spanish
+                'fr': 'FR', // French
+                'de': 'DE', // German
+                'it': 'IT', // Italian
+                'pt': 'BR', // Portuguese (Brazil)
+                'ko': 'KR', // Korean
+                'ja': 'JP', // Japanese
+                'hi': 'IN', // Hindi (India)
+                'ar': 'EG', // Arabic (Egypt)
+            };
+    
+            if (preferences.language && marketMap[preferences.language]) {
+                searchOptions.market = marketMap[preferences.language];
             }
     
-            let queryParts = [searchQuery.trim()];
+            const mood = preferences.mood || '';
+            const genre = preferences.genre || '';
     
-            if (preferences.genre && retryCount === 0) {
-                queryParts.push(`genre:${preferences.genre}`);
+            // Make language the primary search parameter
+            let searchQuery = '';
+            
+            // Language-specific keywords map
+            const languageKeywords = {
+                'es': ['español', 'latino', 'castellano'], 
+                'fr': ['français', 'chanson'], 
+                'de': ['deutsch', 'schlager'], 
+                'it': ['italiano', 'canzone'], 
+                'pt': ['português', 'mpb', 'samba'], 
+                'ko': ['k-pop', '한국어'], 
+                'ja': ['j-pop', '日本語'], 
+                'hi': ['bollywood', 'hindi song', 'भारतीय'], 
+                'ar': ['arabic', 'عربي'],
+            };
+            
+            // If language preference exists, prioritize it in the search
+            if (preferences.language && languageKeywords[preferences.language]) {
+                // Directly force the language in the query
+                searchQuery = `language:${preferences.language} OR `;
+                searchQuery += languageKeywords[preferences.language].join(' OR ');
+                
+                // Add genre and mood as secondary parameters
+                if (genre) searchQuery += ` ${genre}`;
+                if (mood) searchQuery += ` ${mood}`;
+            } else {
+                // Fall back to normal search method
+                searchQuery = this.buildSearchQuery(mood, genre, preferences, skipCount);
             }
     
-            if (preferences.artist && retryCount === 0) {
-                if (typeof preferences.artist === 'string') {
-                    queryParts.push(`artist:${preferences.artist}`);
-                } else if (preferences.artist.name) {
-                    const sanitizedArtistName = preferences.artist.name
-                        .replace(/['"]/g, '')
-                        .trim();
-                    if (sanitizedArtistName) {
-                        queryParts.push(`artist:"${sanitizedArtistName}"`);
-                    }
-                }
-            }
+            // Log the search query for debugging
+            console.log(`Searching with query: ${searchQuery}, market: ${searchOptions.market}`);
     
-            let finalQuery = queryParts.filter(part => part && part.trim() !== '').join(' ');
-    
-            if (!finalQuery) {
-                throw new Error('No valid search criteria provided');
-            }
-    
-            // Add randomization to the search query to get different results
-            if (skipCount > 0) {
-                const randomWords = ['remix', 'live', 'acoustic', 'cover', 'instrumental', 'extended'];
-                const randomWord = randomWords[Math.floor(Math.random() * randomWords.length)];
-                finalQuery = `${finalQuery} NOT ${randomWord}`;
-            }
-    
-            const searchResults = await this.spotifyApi.searchTracks(finalQuery, searchOptions);
+            // Search for tracks with language priority
+            const searchResults = await this.spotifyApi.searchTracks(searchQuery, searchOptions);
     
             if (!searchResults.body.tracks?.items?.length) {
                 if (retryCount < this.maxRetries) {
-                    return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
+                    return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1);
                 }
                 throw new Error('No tracks found with the current search criteria');
             }
     
             let tracks = searchResults.body.tracks.items
-                // Filter out previously suggested songs
                 .filter(track => !preferences.previouslySuggested?.includes(track.uri))
                 .map(track => ({
                     name: track.name,
@@ -162,16 +176,17 @@ class SongRecommender {
                     popularity: track.popularity,
                     genre: preferences.genre || '',
                     mood: preferences.mood || '',
-                    score: track.popularity
+                    score: track.popularity + (Math.random() * 10)
                 }));
     
             if (tracks.length === 0) {
                 if (retryCount < this.maxRetries) {
-                    return this.findSuitableTrack(searchQuery, preferences, skipCount + 30, retryCount + 1);
+                    return this.findSuitableTrack(preferences, skipCount + 30, retryCount + 1);
                 }
                 throw new Error('No new tracks available. Try different preferences.');
             }
     
+            // Rank and filter songs
             const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
                 tracks,
                 {
@@ -184,32 +199,226 @@ class SongRecommender {
     
             return rankedTracks;
         } catch (error) {
+            // Fix for 404 error - add detailed logging
+            console.error(`Error finding tracks: ${error.statusCode} - ${error.message}`);
+            
+            if (error.statusCode === 404) {
+                console.error('404 error - endpoint or resource not found');
+                // Fall back to broader search without specific language constraint
+                if (preferences.language && retryCount < this.maxRetries) {
+                    const newPrefs = {...preferences};
+                    delete newPrefs.language;
+                    return this.findSuitableTrack(newPrefs, skipCount, retryCount + 1);
+                }
+            }
+            
             if (retryCount < this.maxRetries) {
                 console.log(`Error in attempt ${retryCount + 1}, retrying with broader search`);
-                return this.findSuitableTrack(searchQuery, preferences, skipCount, retryCount + 1);
+                return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1);
             }
-            console.error('Error finding suitable tracks:', error);
+            
             throw error;
         }
     }
 
-    async retrySearch(searchQuery, preferences, skipCount) {
+    buildSearchQuery(mood, genre, preferences, skipCount) {
+        let query = '';
+        if (genre) {
+            query += ` genre:${genre}`;
+        }
+        if (preferences.artist) {
+            if (typeof preferences.artist === 'string') {
+                query += ` artist:${preferences.artist}`;
+            } else if (preferences.artist.name) {
+                const sanitizedArtistName = preferences.artist.name
+                    .replace(/['"]/g, '')
+                    .trim();
+                if (sanitizedArtistName) {
+                    query += ` artist:"${sanitizedArtistName}"`;
+                }
+            }
+        }
+        const randomWords = ['remix', 'live', 'acoustic', 'cover', 'instrumental', 'extended'];
+        if (skipCount > 0) {
+            const randomWord = randomWords[skipCount % randomWords.length];
+            query += ` NOT ${randomWord}`;
+            if (skipCount > 30) {
+                const secondRandomWord = randomWords[(skipCount + 3) % randomWords.length];
+                query += ` NOT ${secondRandomWord}`;
+            }
+        }
+        if (preferences.popularity) {
+            if (preferences.popularity === 'undiscovered') {
+                searchOptions.offset += 100;
+            }
+        }
+        const moodSeedWords = this.getMoodSeedWords(mood);
+        if (moodSeedWords && moodSeedWords.length > 0) {
+            const seedWordsToUse = skipCount > 0
+                ? [moodSeedWords[skipCount % moodSeedWords.length]]
+                : [moodSeedWords[0]];
+
+            query = seedWordsToUse.join(' ') + query;
+        }
+        if (query.trim() === '') {
+            query = genre || 'music';
+        }
+
+        return query.trim();
+    }
+
+    broadenSearchPreferences(preferences, retryCount) {
+        const broadenedPrefs = { ...preferences };
+        if (retryCount > 0) {
+            if (broadenedPrefs.language && retryCount >= 2) {
+                delete broadenedPrefs.language;
+            }
+            if (broadenedPrefs.popularity && retryCount >= 1) {
+                delete broadenedPrefs.popularity;
+            }
+            if (broadenedPrefs.genre && retryCount >= 1) {
+                const genreRelations = {
+                    'rock': ['alternative', 'indie', 'metal'],
+                    'pop': ['dance', 'electronic', 'indie'],
+                    'hip-hop': ['rap', 'r-n-b', 'urban'],
+                    'r-n-b': ['soul', 'urban', 'hip-hop'],
+                    'electronic': ['dance', 'house', 'techno'],
+                    'classical': ['instrumental', 'orchestral', 'piano'],
+                    'jazz': ['blues', 'soul', 'funk'],
+                    'indie': ['alternative', 'rock', 'folk'],
+                    'metal': ['rock', 'hard-rock', 'punk'],
+                    'folk': ['acoustic', 'singer-songwriter', 'indie'],
+                    'blues': ['jazz', 'soul', 'rock'],
+                    'country': ['folk', 'americana', 'acoustic'],
+                    'latin': ['reggaeton', 'pop', 'tropical'],
+                    'reggae': ['dancehall', 'dub', 'ska']
+                };
+
+                if (retryCount === 1 && genreRelations[broadenedPrefs.genre]) {
+                    const relatedGenres = genreRelations[broadenedPrefs.genre];
+                    broadenedPrefs.genre = relatedGenres[Math.floor(Math.random() * relatedGenres.length)];
+                } else if (retryCount >= 2) {
+                    delete broadenedPrefs.genre;
+                }
+            }
+        }
+        return broadenedPrefs;
+    }
+    getMoodSeedWords(mood) {
+        const moodSeedMap = {
+            'upbeat': ['dance', 'energetic', 'fun', 'party', 'summer'],
+            'peaceful': ['calm', 'ambient', 'relax', 'meditation', 'chill'],
+            'intense': ['powerful', 'energy', 'strong', 'gym', 'workout'],
+            'melancholic': ['sad', 'emotional', 'reflective', 'rainy', 'autumn'],
+            'romantic': ['love', 'passion', 'heartfelt', 'intimate', 'beautiful'],
+            'dark': ['night', 'mysterious', 'atmospheric', 'deep', 'haunting'],
+            'dreamy': ['ethereal', 'floating', 'atmospheric', 'space', 'night'],
+            'epic': ['orchestral', 'cinematic', 'trailer', 'majestic', 'grand'],
+            'angry': ['aggressive', 'heavy', 'loud', 'tension', 'rage'],
+            'happy': ['sunny', 'positive', 'bright', 'cheerful', 'optimistic']
+        };
+
+        return moodSeedMap[mood] || [];
+    }
+
+    getMoodAudioFeatures(mood) {
+        const moodFeatureMap = {
+            'upbeat': {
+                min_energy: 0.7,
+                max_energy: 1.0,
+                min_valence: 0.6,
+                max_valence: 1.0,
+                min_tempo: 110
+            },
+            'peaceful': {
+                min_energy: 0.0,
+                max_energy: 0.4,
+                min_valence: 0.3,
+                max_valence: 0.7,
+                max_tempo: 100
+            },
+            'intense': {
+                min_energy: 0.7,
+                max_energy: 1.0,
+                min_valence: 0.2,
+                max_valence: 0.7,
+                min_tempo: 120
+            },
+            'melancholic': {
+                min_energy: 0.2,
+                max_energy: 0.6,
+                min_valence: 0.0,
+                max_valence: 0.4,
+                max_tempo: 110
+            },
+            'romantic': {
+                min_energy: 0.3,
+                max_energy: 0.6,
+                min_valence: 0.4,
+                max_valence: 0.8,
+                target_acousticness: 0.5
+            },
+            'dark': {
+                min_energy: 0.4,
+                max_energy: 0.8,
+                min_valence: 0.0,
+                max_valence: 0.4,
+                target_instrumentalness: 0.3
+            },
+            'dreamy': {
+                min_energy: 0.3,
+                max_energy: 0.7,
+                target_acousticness: 0.6,
+                target_instrumentalness: 0.4
+            },
+            'epic': {
+                min_energy: 0.7,
+                max_energy: 1.0,
+                target_instrumentalness: 0.5,
+                min_tempo: 90
+            },
+            'angry': {
+                min_energy: 0.7,
+                max_energy: 1.0,
+                min_valence: 0.0,
+                max_valence: 0.4,
+                min_tempo: 100
+            },
+            'happy': {
+                min_energy: 0.5,
+                max_energy: 0.9,
+                min_valence: 0.7,
+                max_valence: 1.0,
+                min_tempo: 100
+            }
+        };
+
+        return moodFeatureMap[mood] || {};
+    }
+
+    async retrySearch(preferences, skipCount) {
         const retryStrategies = [
+            // Strategy 1: Try with mood only
             async () => {
-                const baseQuery = `${preferences.mood || ''} ${preferences.genre || ''}`.trim();
-                return await this.findSuitableTrack(baseQuery, {
+                const simplifiedPrefs = {
+                    mood: preferences.mood,
                     language: preferences.language
-                }, skipCount);
+                };
+                return await this.findSuitableTrack(simplifiedPrefs, skipCount);
             },
             async () => {
-                return await this.findSuitableTrack(preferences.genre || searchQuery, {
+                const simplifiedPrefs = {
+                    genre: preferences.genre,
                     language: preferences.language
-                }, skipCount);
+                };
+                return await this.findSuitableTrack(simplifiedPrefs, skipCount);
             },
             async () => {
-                return await this.findSuitableTrack(searchQuery, {
-                    language: preferences.language
-                }, skipCount + 1);
+                return await this.findSuitableTrack(preferences, skipCount + 30);
+            },
+            async () => {
+                return await this.findSuitableTrack({ language: preferences.language },
+                    Math.floor(Math.random() * 500));
             }
         ];
 
@@ -229,39 +438,29 @@ class SongRecommender {
     async getSongRecommendation(imageAnalysis, skipCount = 0, preferences = {}) {
         try {
             await this.ensureAuthenticated();
-
-            const moodSearchTerms = {
-                'upbeat': 'happy upbeat',
-                'peaceful': 'peaceful calm',
-                'intense': 'intense energetic',
-                'melancholic': 'soft melancholic',
-                'romantic': 'romantic love',
-                'dark': 'dark atmospheric',
-                'dreamy': 'dreamy ambient',
-                'epic': 'epic orchestral',
-                'angry': 'angry aggressive',
-                'happy': 'happy cheerful'
+            const combinedPreferences = {
+                mood: preferences.mood || imageAnalysis.mood,
+                genre: preferences.genre || (imageAnalysis.genre_hints?.[0] || ''),
+                language: preferences.language,
+                popularity: preferences.popularity,
+                artist: preferences.artist,
+                likedArtists: preferences.likedArtists || [],
+                dislikedArtists: preferences.dislikedArtists || [],
+                likedSongs: preferences.likedSongs || [],
+                dislikedSongs: preferences.dislikedSongs || [],
+                previouslySuggested: preferences.previouslySuggested || []
             };
-
-            const baseQuery = preferences.mood ?
-                moodSearchTerms[preferences.mood] :
-                moodSearchTerms[imageAnalysis.mood] || '';
-
-            const genreHint = preferences.genre || imageAnalysis.genre_hints?.[0] || '';
-            const searchQuery = `${baseQuery} ${genreHint}`.trim();
-
-
+            combinedPreferences.randomSeed = Date.now() + skipCount;
             try {
-                const tracks = await this.findSuitableTrack(searchQuery, preferences, skipCount);
-                return tracks; // Now returns the full list of ranked tracks
+                const tracks = await this.findSuitableTrack(combinedPreferences, skipCount);
+                return tracks;
             } catch (error) {
                 console.log('Initial search failed, trying retry strategies');
-                return await this.retrySearch(searchQuery, preferences, skipCount);
+                return await this.retrySearch(combinedPreferences, skipCount);
             }
-
         } catch (error) {
             console.error('Recommendation error:', error);
-            return [this.getFallbackTrack()]; // Return fallback track in an array
+            return [this.getFallbackTrack()];
         }
     }
 
