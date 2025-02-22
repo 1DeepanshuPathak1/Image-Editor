@@ -24,7 +24,6 @@ const SongRecommenderPage = () => {
     const [likedArtists, setLikedArtists] = useState([]);
     const [dislikedArtists, setDislikedArtists] = useState([]);
     const [userId, setUserId] = useState(null);
-    // Replace the existing useEffect for fetching userId with this:
     useEffect(() => {
         const fetchUserId = async () => {
             try {
@@ -99,7 +98,6 @@ const SongRecommenderPage = () => {
         fetchUserPreferences();
     }, [userId]);
 
-    // Handle feedback (like/dislike) for songs or artists
     const handleFeedback = async (type, scope, song) => {
         if (!userId || !song || !song.uri) {
             console.error('Invalid user ID or song data');
@@ -108,15 +106,17 @@ const SongRecommenderPage = () => {
         }
 
         try {
+            const genre = Array.isArray(song.genres) ? song.genres[0] : 
+                             song.genre ? song.genre : 
+                             '';
             const songData = {
                 name: song.name,
                 artist: song.artist,
                 artist_id: song.artist_id,
                 uri: song.uri,
-                preview_url: song.preview_url,
                 external_url: song.external_url,
                 album_art: song.album_art,
-                genre: song.genre,
+                genre: genre,
                 mood: imageAnalysis?.mood
             };
 
@@ -143,7 +143,6 @@ const SongRecommenderPage = () => {
 
             const data = await response.json();
 
-            // Update local state based on feedback
             if (scope === 'song') {
                 if (type === 'like') {
                     setDislikedSongs(prev => prev.filter(s => s.songId !== song.uri.split(':')[2]));
@@ -196,7 +195,6 @@ const SongRecommenderPage = () => {
                 }
             }
 
-            // Update history with feedback
             setHistory(prev => {
                 const updatedHistory = prev.map(item => {
                     if (item.song.uri === song.uri) {
@@ -213,7 +211,6 @@ const SongRecommenderPage = () => {
         }
     };
 
-    // Clear recent recommendations on page refresh
     useEffect(() => {
         setHistory([]);
     }, []);

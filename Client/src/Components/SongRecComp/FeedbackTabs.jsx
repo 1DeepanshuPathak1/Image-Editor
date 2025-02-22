@@ -100,9 +100,11 @@ const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
     </div>
   );
 };
-
 const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislikedItems, onDeleteItem, userId }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [prevPage, setPrevPage] = useState(null);
+  const [animationDirection, setAnimationDirection] = useState(null);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const getCurrentItems = () => {
     let items;
@@ -125,7 +127,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
     }
 
     items = items.slice(0, MAX_ITEMS);
-
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return items.slice(startIndex, endIndex);
@@ -150,11 +151,21 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
   };
 
   const handlePageChange = (pageNumber) => {
+    if (pageNumber === currentPage || isAnimating) return;
+
+    setIsAnimating(true);
+    setPrevPage(currentPage);
+    setAnimationDirection(pageNumber > currentPage ? 'forward' : 'backward');
     setCurrentPage(pageNumber);
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 400); 
   };
 
   React.useEffect(() => {
     setCurrentPage(1);
+    setPrevPage(null);
+    setAnimationDirection(null);
   }, [activeTab]);
 
   const totalPages = getTotalPages();
@@ -163,35 +174,122 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
   const Pagination = () => {
     if (totalPages <= 1) return null;
 
-    return (
-      <div className="sr-pagination">
+    const renderPageNumbers = () => {
+      const pageNumbers = [];
+      
+      // Add left arrow
+      pageNumbers.push(
         <button
+          key="prev"
           className="sr-pagination-button"
           onClick={() => handlePageChange(currentPage - 1)}
-          disabled={currentPage === 1}
+          disabled={currentPage === 1 || isAnimating}
         >
           <ChevronLeft size={16} />
         </button>
+      );
 
-        <div className="sr-pagination-numbers">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-            <button
-              key={pageNum}
-              className={`sr-pagination-number ${pageNum === currentPage ? 'sr-pagination-number-active' : ''}`}
-              onClick={() => handlePageChange(pageNum)}
-            >
-              {pageNum}
-            </button>
-          ))}
-        </div>
+      // Calculate visible page range
+      let startPage = Math.max(1, currentPage - 1);
+      let endPage = Math.min(totalPages, currentPage + 1);
 
+      // Adjust range for edge cases
+      if (currentPage <= 2) {
+        endPage = Math.min(4, totalPages);
+      } else if (currentPage >= totalPages - 1) {
+        startPage = Math.max(1, totalPages - 3);
+      }
+
+      // First page
+      if (startPage > 1) {
+        pageNumbers.push(
+          <button
+            key={1}
+            className={`sr-pagination-number ${1 === currentPage ? 'sr-pagination-number-active' : ''}`}
+            onClick={() => handlePageChange(1)}
+            disabled={isAnimating}
+          >
+            1
+          </button>
+        );
+
+        if (startPage > 2) {
+          pageNumbers.push(
+            <span key="start-ellipsis" className="sr-pagination-ellipsis">...</span>
+          );
+        }
+      }
+
+      // Visible pages
+      for (let i = startPage; i <= endPage; i++) {
+        let animationClass = '';
+        
+        if (animationDirection === 'forward') {
+          if (i === currentPage) {
+            animationClass = 'fade-in-right scale-up';
+          } else if (i === prevPage) {
+            animationClass = 'fade-out-left scale-down';
+          }
+        } else if (animationDirection === 'backward') {
+          if (i === currentPage) {
+            animationClass = 'fade-in-left scale-up';
+          } else if (i === prevPage) {
+            animationClass = 'fade-out-right scale-down';
+          }
+        }
+
+        pageNumbers.push(
+          <button
+            key={i}
+            className={`sr-pagination-number ${i === currentPage ? 'sr-pagination-number-active' : ''} ${animationClass}`}
+            onClick={() => handlePageChange(i)}
+            disabled={isAnimating}
+          >
+            {i}
+          </button>
+        );
+      }
+
+      // Last page
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+          pageNumbers.push(
+            <span key="end-ellipsis" className="sr-pagination-ellipsis">...</span>
+          );
+        }
+        
+        pageNumbers.push(
+          <button
+            key={totalPages}
+            className={`sr-pagination-number ${totalPages === currentPage ? 'sr-pagination-number-active' : ''}`}
+            onClick={() => handlePageChange(totalPages)}
+            disabled={isAnimating}
+          >
+            {totalPages}
+          </button>
+        );
+      }
+
+      // Add right arrow
+      pageNumbers.push(
         <button
+          key="next"
           className="sr-pagination-button"
           onClick={() => handlePageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
+          disabled={currentPage === totalPages || isAnimating}
         >
           <ChevronRight size={16} />
         </button>
+      );
+
+      return pageNumbers;
+    };
+
+    return (
+      <div className="sr-pagination">
+        <div className="sr-pagination-numbers-container">
+          {renderPageNumbers()}
+        </div>
       </div>
     );
   };

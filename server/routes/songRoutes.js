@@ -112,6 +112,7 @@ router.get('/preferences/:userId', async (req, res) => {
 });
 
 
+
 router.post('/feedback', async (req, res) => {
     try {
         const { songId, artistId, type, scope, userId, songData } = req.body;
@@ -129,58 +130,70 @@ router.post('/feedback', async (req, res) => {
             preferences = await UserMusicPreferences.create({ userId });
         }
 
+        
+        const genre = Array.isArray(songData.genres) ? 
+            songData.genres[0] || '' : 
+            songData.genre || '';
+
         if (scope === 'song') {
+            const songEntry = {
+                songId,
+                name: songData.name,
+                artist: songData.artist,
+                artistId: songData.artist_id,
+                genre: genre,
+                mood: songData.mood,
+                uri: songData.uri,
+                album_art: songData.album_art,
+                external_url: songData.external_url,
+                popularity: songData.popularity,
+                timestamp: new Date()
+            };
+
             if (type === 'like') {
                 preferences.dislikedSongs = preferences.dislikedSongs.filter(s => s.songId !== songId);
-                if (!preferences.likedSongs.some(s => s.songId === songId) && songData) {
-                    preferences.likedSongs.push({
-                        songId,
-                        name: songData.name,
-                        artist: songData.artist,
-                        artistId: songData.artist_id,
-                        genre: songData.genre,
-                        mood: songData.mood,
-                        uri: songData.uri,
-                        album_art: songData.album_art,
-                        timestamp: new Date(),
-                        popularity: songData.popularity
-                    });
+                if (!preferences.likedSongs.some(s => s.songId === songId)) {
+                    preferences.likedSongs.push(songEntry);
+                } else {
+                    preferences.likedSongs = preferences.likedSongs.map(s => 
+                        s.songId === songId ? { ...s, ...songEntry } : s
+                    );
                 }
             } else {
                 preferences.likedSongs = preferences.likedSongs.filter(s => s.songId !== songId);
-                if (!preferences.dislikedSongs.some(s => s.songId === songId) && songData) {
-                    preferences.dislikedSongs.push({
-                        songId,
-                        name: songData.name,
-                        artist: songData.artist,
-                        artistId: songData.artist_id,
-                        genre: songData.genre,
-                        mood: songData.mood,
-                        uri: songData.uri,
-                        album_art: songData.album_art,
-                        timestamp: new Date(),
-                        popularity: songData.popularity
-                    });
+                if (!preferences.dislikedSongs.some(s => s.songId === songId)) {
+                    preferences.dislikedSongs.push(songEntry);
+                } else {
+                    preferences.dislikedSongs = preferences.dislikedSongs.map(s => 
+                        s.songId === songId ? { ...s, ...songEntry } : s
+                    );
                 }
             }
         } else if (scope === 'artist') {
+            const artistEntry = {
+                artistId,
+                name: songData.artist,
+                genre: genre,
+                timestamp: new Date()
+            };
+
             if (type === 'like') {
                 preferences.dislikedArtists = preferences.dislikedArtists.filter(a => a.artistId !== artistId);
-                if (!preferences.likedArtists.some(a => a.artistId === artistId) && songData) {
-                    preferences.likedArtists.push({
-                        artistId,
-                        name: songData.artist,
-                        timestamp: new Date()
-                    });
+                if (!preferences.likedArtists.some(a => a.artistId === artistId)) {
+                    preferences.likedArtists.push(artistEntry);
+                } else {
+                    preferences.likedArtists = preferences.likedArtists.map(a => 
+                        a.artistId === artistId ? { ...a, ...artistEntry } : a
+                    );
                 }
             } else {
                 preferences.likedArtists = preferences.likedArtists.filter(a => a.artistId !== artistId);
-                if (!preferences.dislikedArtists.some(a => a.artistId === artistId) && songData) {
-                    preferences.dislikedArtists.push({
-                        artistId,
-                        name: songData.artist,
-                        timestamp: new Date()
-                    });
+                if (!preferences.dislikedArtists.some(a => a.artistId === artistId)) {
+                    preferences.dislikedArtists.push(artistEntry);
+                } else {
+                    preferences.dislikedArtists = preferences.dislikedArtists.map(a => 
+                        a.artistId === artistId ? { ...a, ...artistEntry } : a
+                    );
                 }
             }
         }
@@ -232,7 +245,7 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         const userId = req.body.userId;
         const skipCount = parseInt(req.query.skip) || 0;
 
-        // Keep track of previously suggested songs
+        
         if (!req.app.locals.suggestedSongs) {
             req.app.locals.suggestedSongs = new Set();
         }
@@ -241,13 +254,13 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             req.app.locals.lastImageHash = null;
         }
 
-        // Generate a simple hash of the image buffer
+        
         const imageHash = require('crypto')
             .createHash('md5')
             .update(req.file.buffer)
             .digest('hex');
 
-        // Reset suggested songs if it's a new image
+        
         if (imageHash !== req.app.locals.lastImageHash) {
             req.app.locals.suggestedSongs.clear();
             req.app.locals.lastImageHash = imageHash;
@@ -271,7 +284,7 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
 
         const description = songRecommender.generateDescription(imageAnalysis);
         
-        // Add previously suggested songs to preferences to avoid recommending them again
+        
         preferences.previouslySuggested = Array.from(req.app.locals.suggestedSongs);
 
         const recommendations = await songRecommender.getSongRecommendation(
@@ -284,7 +297,7 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             return res.status(404).json({ error: 'No suitable songs found' });
         }
 
-        // Add new songs to the suggested set
+        
         recommendations.forEach(song => {
             req.app.locals.suggestedSongs.add(song.uri);
         });

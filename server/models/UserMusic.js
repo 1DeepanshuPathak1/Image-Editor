@@ -5,11 +5,13 @@ const userMusicPreferencesSchema = new mongoose.Schema({
     likedArtists: [{
         artistId: String,
         name: String,
+        genre: String,  
         timestamp: { type: Date, default: Date.now }
     }],
     dislikedArtists: [{
         artistId: String,
         name: String,
+        genre: String,  
         timestamp: { type: Date, default: Date.now }
     }],
     likedSongs: [{
@@ -17,10 +19,12 @@ const userMusicPreferencesSchema = new mongoose.Schema({
         name: String,
         artist: String,
         artistId: String,
-        genre: String,
+        genre: String,  
         mood: String,
         uri: String,
         album_art: String,
+        external_url: String,
+        popularity: Number,
         timestamp: { type: Date, default: Date.now }
     }],
     dislikedSongs: [{
@@ -28,10 +32,12 @@ const userMusicPreferencesSchema = new mongoose.Schema({
         name: String,
         artist: String,
         artistId: String,
-        genre: String,
+        genre: String,  
         mood: String,
         uri: String,
         album_art: String,
+        external_url: String,
+        popularity: Number,
         timestamp: { type: Date, default: Date.now }
     }]
 });

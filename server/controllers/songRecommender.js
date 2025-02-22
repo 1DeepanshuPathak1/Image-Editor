@@ -16,7 +16,12 @@ class SongRecommender {
 
         this.initialized = this.initialize();
         this.maxRetries = 3;
+        // Add cache for previously suggested songs
+        this.suggestionHistory = new Set();
+        // Add cache for disliked artists' full catalog
+        this.dislikedArtistsCatalog = new Map();
     }
+
     async initialize() {
         try {
             await this.refreshSpotifyToken();
@@ -26,6 +31,7 @@ class SongRecommender {
             throw error;
         }
     }
+
     async ensureAuthenticated() {
         try {
             const token = this.spotifyApi.getAccessToken();
@@ -37,6 +43,7 @@ class SongRecommender {
             throw error;
         }
     }
+
     async getArtistInfo(artistId) {
         await this.ensureAuthenticated();
 
@@ -67,6 +74,7 @@ class SongRecommender {
             throw error;
         }
     }
+
     async refreshSpotifyToken() {
         try {
             const data = await this.spotifyApi.clientCredentialsGrant();
@@ -82,6 +90,7 @@ class SongRecommender {
             throw new Error('Failed to authenticate with Spotify: ' + error.message);
         }
     }
+
     async searchArtists(query) {
         await this.ensureAuthenticated();
         try {
@@ -92,25 +101,31 @@ class SongRecommender {
             throw error;
         }
     }
+
     async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0) {
         try {
             await this.ensureAuthenticated();
+            
+            if (preferences.dislikedArtists?.length) {
+                await this.updateDislikedArtistsCatalog(preferences.dislikedArtists);
+            }
+    
             const searchOptions = {
                 limit: 50,
-                offset: skipCount,
+                offset: skipCount + (Math.floor(Math.random() * 200)),
             };
     
-            // Important: Set correct market based on language preference
             const marketMap = {
-                'es': 'ES', // Spanish
-                'fr': 'FR', // French
-                'de': 'DE', // German
-                'it': 'IT', // Italian
-                'pt': 'BR', // Portuguese (Brazil)
-                'ko': 'KR', // Korean
-                'ja': 'JP', // Japanese
-                'hi': 'IN', // Hindi (India)
-                'ar': 'EG', // Arabic (Egypt)
+                'en': 'US',
+                'es': 'ES', 
+                'fr': 'FR', 
+                'de': 'DE', 
+                'it': 'IT', 
+                'pt': 'BR', 
+                'ko': 'KR', 
+                'ja': 'JP', 
+                'hi': 'IN', 
+                'ar': 'EG', 
             };
     
             if (preferences.language && marketMap[preferences.language]) {
@@ -120,40 +135,31 @@ class SongRecommender {
             const mood = preferences.mood || '';
             const genre = preferences.genre || '';
     
-            // Make language the primary search parameter
             let searchQuery = '';
-            
-            // Language-specific keywords map
+    
             const languageKeywords = {
-                'es': ['español', 'latino', 'castellano'], 
-                'fr': ['français', 'chanson'], 
-                'de': ['deutsch', 'schlager'], 
-                'it': ['italiano', 'canzone'], 
-                'pt': ['português', 'mpb', 'samba'], 
-                'ko': ['k-pop', '한국어'], 
-                'ja': ['j-pop', '日本語'], 
-                'hi': ['bollywood', 'hindi song', 'भारतीय'], 
-                'ar': ['arabic', 'عربي'],
+                'en': ['english', 'pop', 'rock', 'hip hop', 'country', 'rnb', 'london', 'british'],
+                'es': ['español', 'reggaeton', 'salsa', 'latino', 'mexicano'],
+                'fr': ['français', 'chanson', 'rap français', 'paris'],
+                'de': ['deutsch', 'schlager', 'volksmusik', 'berlin'],
+                'it': ['italiano', 'opera', 'tarantella', 'milano'],
+                'pt': ['português', 'samba', 'fado', 'brasil'],
+                'ko': ['k-pop', 'korean', 'seoul', 'ost'],
+                'ja': ['j-pop', 'anime', 'tokyo', 'j-rock'],
+                'hi': ['bollywood', 'भारतीय','indie india','desi', 'hindi song'],
+                'ar': ['arabic', 'khaleeji', 'cairo', 'oud']
             };
-            
-            // If language preference exists, prioritize it in the search
+    
             if (preferences.language && languageKeywords[preferences.language]) {
-                // Directly force the language in the query
                 searchQuery = `language:${preferences.language} OR `;
                 searchQuery += languageKeywords[preferences.language].join(' OR ');
-                
-                // Add genre and mood as secondary parameters
+    
                 if (genre) searchQuery += ` ${genre}`;
                 if (mood) searchQuery += ` ${mood}`;
             } else {
-                // Fall back to normal search method
                 searchQuery = this.buildSearchQuery(mood, genre, preferences, skipCount);
             }
     
-            // Log the search query for debugging
-            console.log(`Searching with query: ${searchQuery}, market: ${searchOptions.market}`);
-    
-            // Search for tracks with language priority
             const searchResults = await this.spotifyApi.searchTracks(searchQuery, searchOptions);
     
             if (!searchResults.body.tracks?.items?.length) {
@@ -163,8 +169,27 @@ class SongRecommender {
                 throw new Error('No tracks found with the current search criteria');
             }
     
+            const allowedVersions = preferences.allowedVersions || [];
+    
             let tracks = searchResults.body.tracks.items
-                .filter(track => !preferences.previouslySuggested?.includes(track.uri))
+                .filter(track => !this.suggestionHistory.has(track.uri))
+                .filter(track => !this.isArtistDisliked(track.artists[0].id))
+                .filter(track => {
+                    const lowerName = track.name.toLowerCase();
+                    return !(
+                        (!allowedVersions.includes('lofi') && (lowerName.includes('lofi') || lowerName.includes('lo fi') || lowerName.includes('lo-fi'))) ||
+                        (!allowedVersions.includes('instrumental') && lowerName.includes('instrumental')) ||
+                        (!allowedVersions.includes('reverb') && lowerName.includes('reverb')) ||
+                        (!allowedVersions.includes('remix') && (lowerName.includes('remix') || lowerName.includes('mix'))) ||
+                        (!allowedVersions.includes('sped-up') && lowerName.includes('sped up')) ||
+                        (!allowedVersions.includes('study') && lowerName.includes('study')) ||
+                        (!allowedVersions.includes('mashup') && lowerName.includes('mashup')) ||
+                        (!allowedVersions.includes('stereo') && lowerName.includes('stereo')) ||
+                        (!allowedVersions.includes('acoustic') && lowerName.includes('acoustic')) ||
+                        (!allowedVersions.includes('beats') && lowerName.includes('beats')) ||
+                        (!allowedVersions.includes('slowed') && lowerName.includes('slowed'))
+                    );
+                })
                 .map(track => ({
                     name: track.name,
                     artist: track.artists[0].name,
@@ -176,17 +201,20 @@ class SongRecommender {
                     popularity: track.popularity,
                     genre: preferences.genre || '',
                     mood: preferences.mood || '',
-                    score: track.popularity + (Math.random() * 10)
+                    score: track.popularity + (Math.random() * 20)
                 }));
+    
+            tracks.forEach(track => this.suggestionHistory.add(track.uri));
     
             if (tracks.length === 0) {
                 if (retryCount < this.maxRetries) {
-                    return this.findSuitableTrack(preferences, skipCount + 30, retryCount + 1);
+                    return this.findSuitableTrack(preferences, skipCount + 50, retryCount + 1);
                 }
                 throw new Error('No new tracks available. Try different preferences.');
             }
     
-            // Rank and filter songs
+            tracks = this.shuffleArray(tracks);
+    
             const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
                 tracks,
                 {
@@ -198,26 +226,74 @@ class SongRecommender {
             );
     
             return rankedTracks;
+    
         } catch (error) {
-            // Fix for 404 error - add detailed logging
             console.error(`Error finding tracks: ${error.statusCode} - ${error.message}`);
-            
+    
             if (error.statusCode === 404) {
                 console.error('404 error - endpoint or resource not found');
-                // Fall back to broader search without specific language constraint
                 if (preferences.language && retryCount < this.maxRetries) {
-                    const newPrefs = {...preferences};
+                    const newPrefs = { ...preferences };
                     delete newPrefs.language;
                     return this.findSuitableTrack(newPrefs, skipCount, retryCount + 1);
                 }
             }
-            
+    
             if (retryCount < this.maxRetries) {
                 console.log(`Error in attempt ${retryCount + 1}, retrying with broader search`);
                 return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1);
             }
-            
+    
             throw error;
+        }
+    }
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    isArtistDisliked(artistId) {
+        return this.dislikedArtistsCatalog.has(artistId);
+    }
+
+    async updateDislikedArtistsCatalog(dislikedArtists) {
+        if (!Array.isArray(dislikedArtists)) {
+            console.warn('Invalid dislikedArtists parameter: expected an array');
+            return;
+        }
+    
+        for (const artist of dislikedArtists) {
+            const artistId = typeof artist === 'object' ? artist.artistId : artist;
+            if (this.dislikedArtistsCatalog.has(artistId)) {
+                continue;
+            }
+    
+            try {
+                if (typeof artist === 'object' && artist.name) {
+                    this.dislikedArtistsCatalog.set(artistId, {
+                        name: artist.name,
+                        genre: artist.genre,
+                        timestamp: artist.timestamp || Date.now()
+                    });
+                    continue;
+                }
+                const artistData = await this.spotifyApi.getArtist(artistId);
+                this.dislikedArtistsCatalog.set(artistId, {
+                    name: artistData.body.name,
+                    genre: artistData.body.genres?.[0] || '',
+                    timestamp: Date.now()
+                });
+            } catch (error) {
+                this.dislikedArtistsCatalog.set(artistId, {
+                    name: 'Unknown Artist',
+                    genre: '',
+                    timestamp: Date.now()
+                });
+            }
         }
     }
 
@@ -304,6 +380,7 @@ class SongRecommender {
         }
         return broadenedPrefs;
     }
+
     getMoodSeedWords(mood) {
         const moodSeedMap = {
             'upbeat': ['dance', 'energetic', 'fun', 'party', 'summer'],
@@ -312,7 +389,7 @@ class SongRecommender {
             'melancholic': ['sad', 'emotional', 'reflective', 'rainy', 'autumn'],
             'romantic': ['love', 'passion', 'heartfelt', 'intimate', 'beautiful'],
             'dark': ['night', 'mysterious', 'atmospheric', 'deep', 'haunting'],
-            'dreamy': ['ethereal', 'floating', 'atmospheric', 'space', 'night'],
+            'dreamy': ['floating', 'atmospheric', 'space', 'night','ethereal'],
             'epic': ['orchestral', 'cinematic', 'trailer', 'majestic', 'grand'],
             'angry': ['aggressive', 'heavy', 'loud', 'tension', 'rage'],
             'happy': ['sunny', 'positive', 'bright', 'cheerful', 'optimistic']
@@ -396,6 +473,12 @@ class SongRecommender {
         return moodFeatureMap[mood] || {};
     }
 
+    clearOldSuggestionHistory() {
+        if (this.suggestionHistory.size > 1000) {
+            this.suggestionHistory.clear();
+        }
+    }
+
     async retrySearch(preferences, skipCount) {
         const retryStrategies = [
             // Strategy 1: Try with mood only
@@ -437,6 +520,9 @@ class SongRecommender {
 
     async getSongRecommendation(imageAnalysis, skipCount = 0, preferences = {}) {
         try {
+            // Clear old suggestion history if needed
+            this.clearOldSuggestionHistory();
+
             await this.ensureAuthenticated();
             const combinedPreferences = {
                 mood: preferences.mood || imageAnalysis.mood,
@@ -448,9 +534,9 @@ class SongRecommender {
                 dislikedArtists: preferences.dislikedArtists || [],
                 likedSongs: preferences.likedSongs || [],
                 dislikedSongs: preferences.dislikedSongs || [],
-                previouslySuggested: preferences.previouslySuggested || []
+                randomSeed: Date.now() + Math.random() // Add more randomization
             };
-            combinedPreferences.randomSeed = Date.now() + skipCount;
+
             try {
                 const tracks = await this.findSuitableTrack(combinedPreferences, skipCount);
                 return tracks;
