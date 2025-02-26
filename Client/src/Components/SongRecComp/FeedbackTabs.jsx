@@ -1,22 +1,40 @@
 import React, { useState } from 'react';
-import { Clock, Heart, ThumbsDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, Heart, ThumbsDown, X, ChevronLeft, ChevronRight, Bookmark } from 'lucide-react';
 import './css/FeedbackTabs.css';
 
 const ITEMS_PER_PAGE = 5;
-const MAX_ITEMS = 50;
+const MAX_ITEMS = 250;
 
 const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+
   const getSongData = () => {
     if (tabType === 'recent') {
-      return item.song || item;
+      return {
+        name: item.song?.name || 'Unknown Track',
+        artist: item.song?.artist || 'Unknown Artist',
+        uri: item.song?.uri || `spotify:track:${item.song?.songId || item.id}`,
+        album_art: item.song?.album_art || '/default-album-art.jpg',
+        external_url: item.song?.external_url || ''
+      };
+    }
+    if (tabType === 'saved') {
+      return {
+        name: item.name || 'Unknown Track',
+        artist: item.artist || 'Unknown Artist',
+        uri: item.uri || `spotify:track:${item.songId}`,
+        album_art: item.album_art || '/default-album-art.jpg',
+        external_url: item.external_url || '',
+        image: item.image
+      };
     }
     
     return {
-      name: item.name,
-      artist: item.artist,
+      name: item.name || 'Unknown Track',
+      artist: item.artist || 'Unknown Artist',
       uri: `spotify:track:${item.songId}`,
-      album_art: item.songData?.album_art || item.album_art,
-      external_url: item.external_url
+      album_art: item.songData?.album_art || item.album_art || '/default-album-art.jpg',
+      external_url: item.external_url || ''
     };
   };
 
@@ -28,14 +46,18 @@ const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
   }
 
   const handleDelete = async () => {
-    const songId = item.songId || (songData.uri && songData.uri.split(':')[2]);
+    const songId = item.songId || (songData.uri && songData.uri.split(':')[2]) || item.id;
     if (!songId) {
       console.error('No valid song ID found for deletion');
       return;
     }
     
     try {
-      const response = await fetch(`http://localhost:3000/api/songs/history/${userId}/${songId}`, {
+      const endpoint = tabType === 'saved' 
+        ? `http://localhost:3000/api/songs/saved/${userId}/${songId}`
+        : `http://localhost:3000/api/songs/history/${userId}/${songId}`;
+      
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       });
 
@@ -49,10 +71,16 @@ const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
     }
   };
 
-  const albumArtUrl = songData.album_art || 
-                     (item.songData && item.songData.album_art) || 
-                     (item.song && item.song.album_art) || 
-                     '/default-album-art.jpg';
+  const albumArtUrl = songData.album_art || '/default-album-art.jpg';
+
+  const handleImageInteraction = () => {
+    setIsFlipped(!isFlipped);
+  };
+
+  const trackId = songData.uri ? songData.uri.split(':')[2] : null;
+  if (!trackId) {
+    console.error('Invalid track ID for song:', songData);
+  }
 
   return (
     <div className="sr-history-item">
@@ -66,17 +94,39 @@ const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
 
       <div className="sr-history-content">
         <div className="sr-song-info">
-          <img
-            src={albumArtUrl}
-            alt={`${songData.name || 'Unknown'} album art`}
-            className="sr-history-image"
-          />
+          {tabType === 'saved' && songData.image ? (
+            <div 
+              className="sr-image-flipper"
+              onClick={handleImageInteraction}
+              onMouseEnter={() => setIsFlipped(true)}
+              onMouseLeave={() => setIsFlipped(false)}
+            >
+              <div className={`sr-image-container ${isFlipped ? 'flipped' : ''}`}>
+                <img
+                  src={songData.image}
+                  alt="Uploaded image"
+                  className="sr-history-image-uploaded front"
+                />
+                <img
+                  src={albumArtUrl}
+                  alt={`${songData.name} album art`}
+                  className="sr-history-image back"
+                />
+              </div>
+            </div>
+          ) : (
+            <img
+              src={albumArtUrl}
+              alt={`${songData.name} album art`}
+              className="sr-history-image"
+            />
+          )}
           <div className="sr-text-content">
             <h4 className="sr-text-truncate" data-tooltip={songData.name}>
-              {songData.name || 'Unknown Track'}
+              {songData.name}
             </h4>
             <p className="sr-text-truncate">
-              {songData.artist || 'Unknown Artist'}
+              {songData.artist}
             </p>
           </div>
         </div>
@@ -84,23 +134,30 @@ const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
         <div className="sr-divider"></div>
 
         <div className="sr-player-container">
-          {songData.uri && (
+          {trackId ? (
             <iframe
-              src={`https://open.spotify.com/embed/track/${songData.uri.split(':')[2]}`}
+              src={`https://open.spotify.com/embed/track/${trackId}`}
               width="100%"
               height="80"
               frameBorder="0"
               allowtransparency="true"
               allow="encrypted-media"
               className="sr-spotify-player"
+              title={`${songData.name} by ${songData.artist}`}
+              loading="lazy"
             ></iframe>
+          ) : (
+            <div className="sr-player-error">
+              Unable to load player: Invalid track ID
+            </div>
           )}
         </div>
       </div>
     </div>
   );
 };
-const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislikedItems, onDeleteItem, userId }) => {
+
+const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislikedItems, savedItems, onDeleteItem, userId }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [prevPage, setPrevPage] = useState(null);
   const [animationDirection, setAnimationDirection] = useState(null);
@@ -119,6 +176,11 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         break;
       case 'disliked':
         items = [...dislikedItems].sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+        break;
+      case 'saved':
+        items = [...savedItems].sort((a, b) => 
           new Date(b.timestamp) - new Date(a.timestamp)
         );
         break;
@@ -143,6 +205,9 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         break;
       case 'disliked':
         totalItems = Math.min(dislikedItems.length, MAX_ITEMS);
+        break;
+      case 'saved':
+        totalItems = Math.min(savedItems.length, MAX_ITEMS);
         break;
       default:
         totalItems = 0;
@@ -177,7 +242,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
     const renderPageNumbers = () => {
       const pageNumbers = [];
       
-      // Add left arrow
       pageNumbers.push(
         <button
           key="prev"
@@ -189,18 +253,15 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         </button>
       );
 
-      // Calculate visible page range
       let startPage = Math.max(1, currentPage - 1);
       let endPage = Math.min(totalPages, currentPage + 1);
 
-      // Adjust range for edge cases
       if (currentPage <= 2) {
         endPage = Math.min(4, totalPages);
       } else if (currentPage >= totalPages - 1) {
         startPage = Math.max(1, totalPages - 3);
       }
 
-      // First page
       if (startPage > 1) {
         pageNumbers.push(
           <button
@@ -220,7 +281,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         }
       }
 
-      // Visible pages
       for (let i = startPage; i <= endPage; i++) {
         let animationClass = '';
         
@@ -250,7 +310,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         );
       }
 
-      // Last page
       if (endPage < totalPages) {
         if (endPage < totalPages - 1) {
           pageNumbers.push(
@@ -270,7 +329,6 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
         );
       }
 
-      // Add right arrow
       pageNumbers.push(
         <button
           key="next"
@@ -318,6 +376,13 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
           <ThumbsDown size={16} />
           Disliked
         </button>
+        <button
+          className={`sr-tab ${activeTab === 'saved' ? 'sr-tab-active' : ''}`}
+          onClick={() => onTabChange('saved')}
+        >
+          <Bookmark size={16} />
+          Saved
+        </button>
       </div>
 
       <div className="sr-tab-content">
@@ -340,6 +405,7 @@ const FeedbackTabs = ({ activeTab, onTabChange, recentItems, likedItems, dislike
               {activeTab === 'recent' && 'No recent recommendations'}
               {activeTab === 'liked' && 'No liked songs yet'}
               {activeTab === 'disliked' && 'No disliked songs yet'}
+              {activeTab === 'saved' && 'No saved songs yet'}
             </div>
           )}
         </div>

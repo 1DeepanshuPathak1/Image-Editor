@@ -1,6 +1,5 @@
 // ImageHandling.jsx
-import React, { useState } from 'react';
-import { Upload, X } from 'lucide-react';
+import { useState } from 'react';
 
 export const useImageHandling = () => {
     const [selectedImage, setSelectedImage] = useState(null);

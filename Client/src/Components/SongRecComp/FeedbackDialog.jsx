@@ -1,6 +1,5 @@
-// FeedbackDialog.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Bookmark } from 'lucide-react';
 import './css/FeedbackDialog.css';
 
 const FeedbackDropdown = ({ isOpen, onClose, type, onSelect }) => {
@@ -65,28 +64,38 @@ const FeedbackButton = ({ type, isActive, onClick, dropdownOpen, onDropdownClose
                 onClick={handleClick}
                 className={`feedback-button ${isActive ? 'active' : ''} ${type}`}
             >
-                {type === 'like' ? <ThumbsUp size={20} /> : <ThumbsDown size={20} />}
+                {type === 'like' ? <ThumbsUp size={20} /> : type === 'dislike' ? <ThumbsDown size={20} /> : <Bookmark size={20} />}
             </button>
-            <FeedbackDropdown
-                isOpen={dropdownOpen}
-                onClose={onDropdownClose}
-                type={type}
-                onSelect={onOptionSelect}
-            />
+            {type !== 'save' && (
+                <FeedbackDropdown
+                    isOpen={dropdownOpen}
+                    onClose={onDropdownClose}
+                    type={type}
+                    onSelect={onOptionSelect}
+                />
+            )}
         </div>
     );
 };
 
-const SongFeedback = ({ suggestedSong, onFeedbackChange }) => {
+const SongFeedback = ({ suggestedSong, onFeedbackChange, onSaveSong }) => {
     const [activeFeedback, setActiveFeedback] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(null);
+    const [isSaved, setIsSaved] = useState(false);
 
     useEffect(() => {
         setActiveFeedback(null);
         setDropdownOpen(null);
+        setIsSaved(false);
     }, [suggestedSong?.uri]);
 
     const handleFeedbackClick = (type) => {
+        if (type === 'save') {
+            onSaveSong(suggestedSong);
+            setIsSaved(true);
+            return;
+        }
+
         if (activeFeedback === type) {
             setDropdownOpen(type);
         } else {
@@ -126,6 +135,11 @@ const SongFeedback = ({ suggestedSong, onFeedbackChange }) => {
                 dropdownOpen={dropdownOpen === 'dislike'}
                 onDropdownClose={() => setDropdownOpen(null)}
                 onOptionSelect={handleOptionSelect}
+            />
+            <FeedbackButton
+                type="save"
+                isActive={isSaved}
+                onClick={() => handleFeedbackClick('save')}
             />
         </div>
     );

@@ -44,10 +44,8 @@ const ResizeImagePage = () => {
         const widthValue = width || document.getElementById('widthInput').value;
         const heightValue = height || document.getElementById('heightInput').value;
         
-        // Build the URL with required parameters
         let url = `http://localhost:3000/resize?width=${widthValue}&height=${heightValue}&format=${imageFormat}`;
         
-        // Only add size parameter if targetSize is provided
         if (targetSize) {
             url += `&size=${targetSize}`;
         }

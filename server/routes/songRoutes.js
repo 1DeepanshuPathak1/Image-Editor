@@ -8,6 +8,112 @@ const mongoose = require('mongoose');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+router.post('/save-song', upload.single('image'), async (req, res) => {
+    try {
+        const { songId, userId, songData } = req.body;
+
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ error: 'Valid user ID is required' });
+        }
+
+        if (!songId || !req.file) {
+            return res.status(400).json({ error: 'Song ID and image are required' });
+        }
+
+        let preferences = await UserMusicPreferences.findOne({ userId });
+        if (!preferences) {
+            preferences = await UserMusicPreferences.create({ 
+                userId,
+                likedArtists: [],
+                dislikedArtists: [],
+                likedSongs: [],
+                dislikedSongs: [],
+                savedSongs: []
+            });
+        }
+
+        const parsedSongData = typeof songData === 'string' ? JSON.parse(songData) : songData;
+
+        const uri = parsedSongData.uri || `spotify:track:${songId}`;
+        if (!uri.startsWith('spotify:track:')) {
+            return res.status(400).json({ error: 'Invalid URI format for song' });
+        }
+
+        const songEntry = {
+            songId,
+            name: parsedSongData.name || 'Unknown Track',
+            artist: parsedSongData.artist || 'Unknown Artist',
+            artistId: parsedSongData.artist_id,
+            genre: parsedSongData.genre || '',
+            mood: parsedSongData.mood,
+            uri,
+            album_art: parsedSongData.album_art || '/default-album-art.jpg',
+            external_url: parsedSongData.external_url,
+            popularity: parsedSongData.popularity || 0,
+            image: req.file.buffer,
+            imageType: req.file.mimetype,
+            timestamp: new Date()
+        };
+
+        if (!preferences.savedSongs) {
+            preferences.savedSongs = [];
+        }
+        
+        preferences.savedSongs = preferences.savedSongs.filter(s => s.songId !== songId);
+        preferences.savedSongs.push(songEntry);
+
+        await preferences.save();
+
+        const responsePreferences = {
+            ...preferences.toObject(),
+            savedSongs: preferences.savedSongs.map(song => ({
+                ...song,
+                image: song.image ? `data:${song.imageType};base64,${song.image.toString('base64')}` : null
+            }))
+        };
+
+        res.status(200).json({
+            success: true,
+            message: 'Song saved successfully',
+            preferences: responsePreferences
+        });
+    } catch (error) {
+        console.error('Error saving song:', error);
+        res.status(500).json({ 
+            error: 'Failed to save song',
+            details: error.message 
+        });
+    }
+});
+
+router.delete('/saved/:userId/:songId', async (req, res) => {
+    try {
+        const { userId, songId } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
+        const preferences = await UserMusicPreferences.findOne({ userId });
+        if (!preferences) {
+            return res.status(404).json({ error: 'User preferences not found' });
+        }
+
+        if (!preferences.savedSongs) {
+            preferences.savedSongs = [];
+        }
+
+        preferences.savedSongs = preferences.savedSongs.filter(song => 
+            song.songId !== songId && song.uri?.split(':')[2] !== songId
+        );
+
+        await preferences.save();
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error deleting saved song:', error);
+        res.status(500).json({ error: 'Failed to delete saved song' });
+    }
+});
 
 router.delete('/history/:userId/:songId', async (req, res) => {
     try {
@@ -22,7 +128,6 @@ router.delete('/history/:userId/:songId', async (req, res) => {
             return res.status(404).json({ error: 'User preferences not found' });
         }
 
-        
         preferences.likedSongs = preferences.likedSongs.filter(song => 
             song.songId !== songId && song.uri?.split(':')[2] !== songId
         );
@@ -37,6 +142,7 @@ router.delete('/history/:userId/:songId', async (req, res) => {
         res.status(500).json({ error: 'Failed to delete item' });
     }
 });
+
 router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
     try {
         const { userId, artistId } = req.params;
@@ -50,7 +156,6 @@ router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
             return res.status(404).json({ error: 'User preferences not found' });
         }
 
-        
         preferences.likedArtists = preferences.likedArtists.filter(artist => 
             artist.artistId !== artistId
         );
@@ -91,27 +196,42 @@ router.get('/preferences/:userId', async (req, res) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findOne({ userId });
+        let preferences = await UserMusicPreferences.findOne({ userId });
         if (!preferences) {
-            const defaultPreferences = {
+            preferences = await UserMusicPreferences.create({
                 userId,
                 likedSongs: [],
                 dislikedSongs: [],
                 likedArtists: [],
-                dislikedArtists: []
-            };
-            await UserMusicPreferences.create(defaultPreferences);
-            return res.json(defaultPreferences);
+                dislikedArtists: [],
+                savedSongs: []
+            });
         }
 
-        res.json(preferences);
+        const responsePreferences = {
+            ...preferences.toObject(),
+            savedSongs: preferences.savedSongs.map(song => ({
+                songId: song.songId,
+                name: song.name || 'Unknown Track',
+                artist: song.artist || 'Unknown Artist',
+                artistId: song.artistId,
+                genre: song.genre || '',
+                mood: song.mood,
+                uri: song.uri,
+                album_art: song.album_art || '/default-album-art.jpg',
+                external_url: song.external_url || '',
+                popularity: song.popularity || 0,
+                image: song.image ? `data:${song.imageType};base64,${song.image.toString('base64')}` : null,
+                timestamp: song.timestamp
+            }))
+        };
+
+        res.json(responsePreferences);
     } catch (error) {
         console.error('Error fetching user preferences:', error);
         res.status(500).json({ error: 'Failed to fetch user preferences' });
     }
 });
-
-
 
 router.post('/feedback', async (req, res) => {
     try {
@@ -130,7 +250,6 @@ router.post('/feedback', async (req, res) => {
             preferences = await UserMusicPreferences.create({ userId });
         }
 
-        
         const genre = Array.isArray(songData.genres) ? 
             songData.genres[0] || '' : 
             songData.genre || '';
@@ -138,15 +257,15 @@ router.post('/feedback', async (req, res) => {
         if (scope === 'song') {
             const songEntry = {
                 songId,
-                name: songData.name,
-                artist: songData.artist,
+                name: songData.name || 'Unknown Track',
+                artist: songData.artist || 'Unknown Artist',
                 artistId: songData.artist_id,
-                genre: genre,
+                genre,
                 mood: songData.mood,
                 uri: songData.uri,
-                album_art: songData.album_art,
-                external_url: songData.external_url,
-                popularity: songData.popularity,
+                album_art: songData.album_art || '/default-album-art.jpg',
+                external_url: songData.external_url || '',
+                popularity: songData.popularity || 0,
                 timestamp: new Date()
             };
 
@@ -172,8 +291,8 @@ router.post('/feedback', async (req, res) => {
         } else if (scope === 'artist') {
             const artistEntry = {
                 artistId,
-                name: songData.artist,
-                genre: genre,
+                name: songData.artist || 'Unknown Artist',
+                genre,
                 timestamp: new Date()
             };
 
@@ -210,7 +329,6 @@ router.post('/feedback', async (req, res) => {
     }
 });
 
-
 router.get('/search-artists', async (req, res) => {
     try {
         await songRecommender.initialized;
@@ -228,7 +346,6 @@ router.get('/search-artists', async (req, res) => {
     }
 });
 
-
 router.post('/recommend-song', upload.single('image'), async (req, res) => {
     try {
         await songRecommender.initialized;
@@ -245,7 +362,6 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         const userId = req.body.userId;
         const skipCount = parseInt(req.query.skip) || 0;
 
-        
         if (!req.app.locals.suggestedSongs) {
             req.app.locals.suggestedSongs = new Set();
         }
@@ -254,13 +370,11 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             req.app.locals.lastImageHash = null;
         }
 
-        
         const imageHash = require('crypto')
             .createHash('md5')
             .update(req.file.buffer)
             .digest('hex');
 
-        
         if (imageHash !== req.app.locals.lastImageHash) {
             req.app.locals.suggestedSongs.clear();
             req.app.locals.lastImageHash = imageHash;
@@ -284,7 +398,6 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
 
         const description = songRecommender.generateDescription(imageAnalysis);
         
-        
         preferences.previouslySuggested = Array.from(req.app.locals.suggestedSongs);
 
         const recommendations = await songRecommender.getSongRecommendation(
@@ -297,7 +410,6 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             return res.status(404).json({ error: 'No suitable songs found' });
         }
 
-        
         recommendations.forEach(song => {
             req.app.locals.suggestedSongs.add(song.uri);
         });
@@ -339,7 +451,6 @@ router.get('/languages', (_req, res) => {
     ];
     res.json({ languages });
 });
-
 
 router.get('/genres', async (_req, res) => {
     try {
