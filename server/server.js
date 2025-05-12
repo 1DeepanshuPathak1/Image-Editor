@@ -10,7 +10,8 @@ const { SignUp, SignIn, GoogleCallback, GitHubCallback, AuthCheck } = require('.
 const { FilterRequest, UploadPost } = require('./controllers/Getrequests');
 const { ResizeImage } = require('./controllers/resizeImage');
 const { enhanceImage } = require('./controllers/UpscaleImage');
-const songRoutes = require('./routes/songRoutes');
+const songRecommender = require('./controllers/songRecommender');
+const setupSongRoutes = require('./routes/songRoutes');
 require('dotenv').config();
 
 // Express app initialization
@@ -80,7 +81,7 @@ const refreshSpotifyToken = async () => {
 // Initial token refresh and setup 45-minute refresh interval
 refreshSpotifyToken()
     .then(() => {
-        setInterval(refreshSpotifyToken, 45 * 60 * 1000);
+        global.spotifyRefreshInterval = setInterval(refreshSpotifyToken, 45 * 60 * 1000);
     })
     .catch(console.error);
 
@@ -158,7 +159,8 @@ app.post('/resize', upload.single('image'), ResizeImage);
 app.post('/upscale', upload.single('image'), enhanceImage);
 
 // Song recommendation routes
-app.use('/api/songs', songRoutes);
+const songRouter = setupSongRoutes();
+app.use('/api/songs', songRouter);
 
 // Error handling middleware
 app.use((err, _req, res, _next) => {
@@ -170,10 +172,34 @@ app.use((err, _req, res, _next) => {
 });
 
 // Start server
+let server;
 MongoDB(connectionURL)
     .then(() => {
-        app.listen(port, () => console.log(`Server running on port ${port}`));
+        server = app.listen(port, () => console.log(`Server running on port ${port}`));
     })
     .catch(err => {
         console.error('Database connection error:', err);
     });
+
+const gracefulShutdown = async () => {
+    console.log('Received shutdown signal, starting graceful shutdown...');
+    songRecommender.cleanup();
+    songRouter.cleanup(); // Add this line
+    if (global.spotifyRefreshInterval) {
+        clearInterval(global.spotifyRefreshInterval);
+    }
+    if (server) {
+        await new Promise(resolve => server.close(resolve));
+    }
+    try {
+        await mongoose.connection.close();
+        console.log('MongoDB connection closed.');
+    } catch (err) {
+        console.error('Error closing MongoDB connection:', err);
+    }
+    
+    console.log('Graceful shutdown completed');
+    process.exit(0);
+};
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);

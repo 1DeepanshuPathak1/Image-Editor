@@ -20,12 +20,13 @@ class SongRecommender {
         this.suggestionHistory = new Set();
         // Add cache for disliked artists' full catalog
         this.dislikedArtistsCatalog = new Map();
+        this.tokenExpirationTime = null;
+        this.tokenRefreshTimeout = null;
     }
 
     async initialize() {
         try {
             await this.refreshSpotifyToken();
-            setInterval(() => this.refreshSpotifyToken(), 45 * 60 * 1000);
         } catch (error) {
             console.error('Initialization error:', error);
             throw error;
@@ -34,8 +35,7 @@ class SongRecommender {
 
     async ensureAuthenticated() {
         try {
-            const token = this.spotifyApi.getAccessToken();
-            if (!token) {
+            if (!this.tokenExpirationTime || Date.now() > this.tokenExpirationTime - 30000) {
                 await this.refreshSpotifyToken();
             }
         } catch (error) {
@@ -79,6 +79,15 @@ class SongRecommender {
         try {
             const data = await this.spotifyApi.clientCredentialsGrant();
             this.spotifyApi.setAccessToken(data.body['access_token']);
+            const expiresIn = (data.body['expires_in'] - 60) * 1000;
+            this.tokenExpirationTime = Date.now() + expiresIn;
+            if (this.tokenRefreshTimeout) {
+                clearTimeout(this.tokenRefreshTimeout);
+            }
+            this.tokenRefreshTimeout = setTimeout(() => {
+                this.refreshSpotifyToken();
+            }, expiresIn);
+
             console.log('Spotify token refreshed successfully');
         } catch (error) {
             console.error('Error refreshing Spotify token:', error.statusCode, error.message);
@@ -139,7 +148,7 @@ class SongRecommender {
     
             const languageKeywords = {
                 'en': ['english', 'pop', 'rock', 'hip hop', 'country', 'rnb', 'london', 'british'],
-                'es': ['español', 'reggaeton', 'salsa', 'latino', 'mexicano'],
+                'es': ['reggaeton', 'salsa', 'latino', 'mexicano'],
                 'fr': ['français', 'chanson', 'rap français', 'paris'],
                 'de': ['deutsch', 'schlager', 'volksmusik', 'berlin'],
                 'it': ['italiano', 'opera', 'tarantella', 'milano'],
@@ -182,12 +191,15 @@ class SongRecommender {
                         (!allowedVersions.includes('reverb') && lowerName.includes('reverb')) ||
                         (!allowedVersions.includes('remix') && (lowerName.includes('remix') || lowerName.includes('mix'))) ||
                         (!allowedVersions.includes('sped-up') && lowerName.includes('sped up')) ||
-                        (!allowedVersions.includes('study') && lowerName.includes('study')) ||
+                        (!allowedVersions.includes('study') && lowerName.includes('sy')) ||
                         (!allowedVersions.includes('mashup') && lowerName.includes('mashup')) ||
                         (!allowedVersions.includes('stereo') && lowerName.includes('stereo')) ||
                         (!allowedVersions.includes('acoustic') && lowerName.includes('acoustic')) ||
                         (!allowedVersions.includes('beats') && lowerName.includes('beats')) ||
-                        (!allowedVersions.includes('slowed') && lowerName.includes('slowed'))
+                        (!allowedVersions.includes('slowed') && lowerName.includes('slowed')) ||
+                        (!allowedVersions.includes('cover') && lowerName.includes('cover')) ||
+                        (!allowedVersions.includes('live') && lowerName.includes('live')) ||
+                        (!allowedVersions.includes('extended') && lowerName.includes('Chillwave'))
                     );
                 })
                 .map(track => ({
@@ -658,6 +670,15 @@ class SongRecommender {
         };
 
         return `This ${moodDescriptions[mood]} scene featuring ${mainObject} suggests ${suggestedGenre} music. Finding a matching song...`;
+    }
+    cleanup() {
+        if (this.tokenRefreshTimeout) {
+            clearTimeout(this.tokenRefreshTimeout);
+            this.tokenRefreshTimeout = null;
+        }
+        this.suggestionHistory.clear();
+        this.dislikedArtistsCatalog.clear();
+        this.tokenExpirationTime = null;
     }
 }
 

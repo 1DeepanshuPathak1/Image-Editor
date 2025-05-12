@@ -462,4 +462,15 @@ router.get('/genres', async (_req, res) => {
     }
 });
 
-module.exports = router;
+function setupSongRoutes() {
+    router.cleanup = () => {
+        if (req.app.locals.suggestedSongs) {
+            req.app.locals.suggestedSongs.clear();
+        }
+        req.app.locals.lastImageHash = null;
+    };
+
+    return router;
+}
+
+module.exports = setupSongRoutes;
