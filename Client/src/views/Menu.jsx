@@ -1,30 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AlertDialog from "../../utils/components/ui/alert-dialog";
 import '../css/Menu.css';
-
 function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
     const navigate = useNavigate();
     const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+    const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
+    useEffect(() => {
+        const storedConnection = sessionStorage.getItem('spotifyConnected');
+        if (storedConnection === 'true') {
+            setIsSpotifyConnected(true);
+        }
+    }, []);
 
     const handleSignIn = () => {
         toggleMenu();
         navigate('/signin');
     };
-
     const handleSignOutClick = () => {
         setShowSignOutDialog(true);
     };
-
     const handleSignOutConfirm = () => {
         setIsSignedIn(false);
         toggleMenu();
         navigate('/');
         setShowSignOutDialog(false);
     };
-
+    const toggleSpotifyConnection = () => {
+        const newState = !isSpotifyConnected;
+        setIsSpotifyConnected(newState);
+        sessionStorage.setItem('spotifyConnected', newState.toString());
+    };
     return (
         <>
+            <button className="menu-button" onClick={toggleMenu}>
+                {isOpen ? '✖' : '☰'}
+            </button>
             <div className={`menu ${isOpen ? 'open' : ''}`}>
                 <ul>
                     <li>
@@ -54,6 +65,21 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
                     </li>
                 </ul>
                 <div className="menu-footer">
+                    <button
+                        className={isSpotifyConnected ? 'spotify-connected-button' : 'spotify-connect-button'}
+                        onClick={toggleSpotifyConnection}
+                    >
+                        {isSpotifyConnected ? 'Spotify Connected' : (
+                            <div className="spotify-button-content">
+                                <span>Connect Your Spotify</span>
+                                <img
+                                    src="https://upload.wikimedia.org/wikipedia/commons/8/84/Spotify_icon.svg"
+                                    alt="Spotify Logo"
+                                    className="spotify-logo"
+                                />
+                            </div>
+                        )}
+                    </button>
                     <button onClick={toggleTheme}>Toggle Theme</button>
                 </div>
             </div>

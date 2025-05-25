@@ -1,11 +1,9 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 
 const AlertDialog = ({ isOpen, onClose, onConfirm }) => {
-  // Prevent scrolling of background content when dialog is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // Add a class to handle background blur
       document.body.classList.add('dialog-open');
     } else {
       document.body.style.overflow = 'unset';

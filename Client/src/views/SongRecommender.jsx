@@ -9,6 +9,7 @@ import { useSongHandling } from '../Components/SongRecComp/SongHandling';
 import SongScoreDisplay from '../Components/SongRecComp/SongScoreDisplay';
 import ArtistPreferences from '../Components/SongRecComp/ArtistPreferences';
 import SongFeedbackHandler from '../Components/SongRecComp/SongFeedbackHandler';
+import AlertDialog from '../..//utils/components/ui/alert-dialog';
 
 const SongRecommenderPage = () => {
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -26,6 +27,23 @@ const SongRecommenderPage = () => {
     const [savedSongs, setSavedSongs] = useState([]);
     const [userId, setUserId] = useState(null);
     const [error, setError] = useState(null);
+    const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
+    const [isDialogOpen, setIsDialogOpen] = useState(true);
+
+    useEffect(() => {
+        const storedConnection = sessionStorage.getItem('spotifyConnected');
+        if (storedConnection === 'true') {
+            setIsSpotifyConnected(true);
+            setIsDialogOpen(false);
+        }
+    }, []);
+
+    const toggleSpotifyConnection = () => {
+        const newState = !isSpotifyConnected;
+        setIsSpotifyConnected(newState);
+        setIsDialogOpen(!newState);
+        sessionStorage.setItem('spotifyConnected', newState.toString());
+    };
 
     useEffect(() => {
         const fetchUserId = async () => {
@@ -120,6 +138,16 @@ const SongRecommenderPage = () => {
     useEffect(() => {
         setHistory([]);
     }, []);
+
+    if (!isSpotifyConnected) {
+        return (
+            <AlertDialog
+                isOpen={isDialogOpen}
+                onClose={() => setIsDialogOpen(false)}
+                onConfirm={toggleSpotifyConnection}
+            />
+        );
+    }
 
     return (
         <div className="sr-page-container">

@@ -38,7 +38,6 @@ function App() {
 
     return (
         <div>
-            <button onClick={toggleMenu} className="menu-button">Menu</button>
             <Menu 
                 isOpen={isMenuOpen} 
                 toggleMenu={toggleMenu} 
