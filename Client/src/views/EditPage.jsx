@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import DownloadDialog from '../../utils/components/ui/Download-dialog';
+import DownloadDialog from '../../utils/ui/Download-dialog';
 import '../css/EditPage.css';
 
 function EditPage() {

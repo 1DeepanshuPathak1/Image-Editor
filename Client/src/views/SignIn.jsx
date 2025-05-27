@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LoginButtons } from '../../utils/components/ui/LoginButtons';
-import PixelCard from '../../utils/components/ui/PixelCard';
+import { LoginButtons } from '../../utils/ui/LoginButtons';
+import PixelCard from '../../utils/ui/PixelCard';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash, faEnvelope } from '@fortawesome/free-solid-svg-icons';
 import '../css/signin.css';
@@ -22,6 +22,16 @@ function SignIn({ setIsSignedIn }) {
         }));
     };
 
+    const handleSuccessfulSignIn = () => {
+        setIsSignedIn(true);
+        const from = location.state?.from || '/';
+        if (from === '/song-recommender') {
+            navigate('/');
+        } else {
+            navigate(from);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         console.log(`Attempting to sign in with email: ${formData.email}`);
@@ -39,9 +49,8 @@ function SignIn({ setIsSignedIn }) {
                 setErrorMessage(data.message || 'Sign-in failed. Please try again.');
                 return;
             }
-            setIsSignedIn(true);
-            const from = location.state?.from || '/';
-            navigate(from);
+            
+            handleSuccessfulSignIn();
         } catch (error) {
             console.error('Sign-in Request Error:', error);
             setErrorMessage('Something went wrong. Please try again later.');
@@ -50,12 +59,13 @@ function SignIn({ setIsSignedIn }) {
 
     const handleGoogleLogin = () => {
         const returnPath = location.state?.from || '/';
-        localStorage.setItem('returnTo',returnPath);
+        localStorage.setItem('returnTo', returnPath);
         window.location.href = 'http://localhost:3000/auth/google';
     };
+    
     const handleGithubLogin = () => {
         const returnPath = location.state?.from || '/';
-        localStorage.setItem('returnTo',returnPath);
+        localStorage.setItem('returnTo', returnPath);
         window.location.href = 'http://localhost:3000/auth/github';
     };
 
@@ -64,7 +74,7 @@ function SignIn({ setIsSignedIn }) {
         '/resize-image': 'You must sign in to access the Image Resize feature.',
         '/upscale': 'You must sign in to access the Image Enhance feature.',
         '/Color-Harmony':'You must Sign in to access the Color-Harmony finder feature',
-        '/song-recommender':'You must Sign in to acess the Song-Recommender Feature',
+        '/song-recommender':'You must Sign in to access the Song-Recommender Feature',
     };
 
     const redirectMessage = redirectMessages[location.state?.from] || '';

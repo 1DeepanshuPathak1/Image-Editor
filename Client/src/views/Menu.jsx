@@ -1,36 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import AlertDialog from "../../utils/components/ui/alert-dialog";
+import AlertDialog from "../../utils/ui/alert-dialog";
 import '../css/Menu.css';
-function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
+
+function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme, isSpotifyConnected, onSpotifyConnection, onSongRecommenderAccess }) {
     const navigate = useNavigate();
     const [showSignOutDialog, setShowSignOutDialog] = useState(false);
-    const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
-    useEffect(() => {
-        const storedConnection = sessionStorage.getItem('spotifyConnected');
-        if (storedConnection === 'true') {
-            setIsSpotifyConnected(true);
-        }
-    }, []);
 
     const handleSignIn = () => {
         toggleMenu();
         navigate('/signin');
     };
+
     const handleSignOutClick = () => {
         setShowSignOutDialog(true);
     };
+
     const handleSignOutConfirm = () => {
         setIsSignedIn(false);
+        onSpotifyConnection(false);
         toggleMenu();
         navigate('/');
         setShowSignOutDialog(false);
     };
+
     const toggleSpotifyConnection = () => {
         const newState = !isSpotifyConnected;
-        setIsSpotifyConnected(newState);
-        sessionStorage.setItem('spotifyConnected', newState.toString());
+        onSpotifyConnection(newState);
     };
+
+    const handleSongRecommenderClick = (e) => {
+        e.preventDefault();
+        if (onSongRecommenderAccess(navigate)) {
+            toggleMenu();
+            navigate('/song-recommender');
+        }
+    };
+
     return (
         <>
             <button className="menu-button" onClick={toggleMenu}>
@@ -54,7 +60,7 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme }) {
                         <Link to="/Color-Harmony" onClick={toggleMenu}>Color Harmony</Link>
                     </li>
                     <li>
-                        <Link to="/song-recommender" onClick={toggleMenu}>Song Recommender</Link>
+                        <a href="#" onClick={handleSongRecommenderClick}>Song Recommender</a>
                     </li>
                     <li>
                         {isSignedIn ? (

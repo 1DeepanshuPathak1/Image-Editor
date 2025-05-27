@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import EditPage from './views/EditPage';
 import Home from './views/Home';
 import Menu from './views/Menu';
@@ -9,11 +9,14 @@ import ResizeImagePage from './views/ResizeImagePage';
 import UpscalePage from './views/UpscalePage';
 import ColorHarmonyPage from './views/ColorHarmony';
 import SongRecommenderPage from './views/SongRecommender';
+import { useSonner } from '../utils/ui/Sonner';
 import './css/Menu.css'
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
     const [isSignedIn, setIsSignedIn] = useState(false);
+    const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
+    const { showToast, ToastContainer } = useSonner();
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -28,12 +31,44 @@ function App() {
                 setIsSignedIn(false);
             }
         };
-        
         checkAuth();
+    }, []);
+
+    useEffect(() => {
+        const storedConnection = sessionStorage.getItem('spotifyConnected');
+        if (storedConnection === 'true') {
+            setIsSpotifyConnected(true);
+        }
     }, []);
 
     const toggleMenu = () => {
         setMenuOpen(!isMenuOpen);
+    };
+
+    const handleSpotifyConnection = (connected) => {
+        setIsSpotifyConnected(connected);
+        sessionStorage.setItem('spotifyConnected', connected.toString());
+    };
+
+    const handleSongRecommenderAccess = (navigate) => {
+        if (!isSignedIn) {
+            showToast(
+                "Authentication Required",
+                "Please sign in to access the Song Recommender."
+            );
+            navigate('/signin', { state: { from: '/song-recommender' } });
+            return false;
+        }
+
+        if (!isSpotifyConnected) {
+            showToast(
+                "Spotify Connection Required",
+                "Please connect your Spotify account to access the Song Recommender."
+            );
+            return false;
+        }
+
+        return true;
     };
 
     return (
@@ -42,7 +77,10 @@ function App() {
                 isOpen={isMenuOpen} 
                 toggleMenu={toggleMenu} 
                 isSignedIn={isSignedIn} 
-                setIsSignedIn={setIsSignedIn} 
+                setIsSignedIn={setIsSignedIn}
+                isSpotifyConnected={isSpotifyConnected}
+                onSpotifyConnection={handleSpotifyConnection}
+                onSongRecommenderAccess={handleSongRecommenderAccess}
             />
 
             <Routes>
@@ -54,9 +92,13 @@ function App() {
                 <Route path="/upscale" element={isSignedIn ? <UpscalePage /> : <Navigate to="/signin" state={{from:'/upscale'}} />} />
                 <Route path="/Color-Harmony" element={isSignedIn ? <ColorHarmonyPage/> : <Navigate to="/signin" state={{from:'/Color-Harmony'}}/>}/>
                 <Route path="/auth/google/callback" element={ <Navigate to="/" replace />} />
-                <Route path="/song-recommender" element={isSignedIn ? <SongRecommenderPage /> : <Navigate to="/signin" state={{from:'/song-recommender'}}/>}/>
-
+                <Route 
+                    path="/song-recommender" 
+                    element={<SongRecommenderPage />}
+                />
             </Routes>
+            
+            <ToastContainer />
         </div>
     );
 }
