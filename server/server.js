@@ -45,12 +45,10 @@ app.use(session({
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'lax',  // Add this
+        sameSite: 'lax',  
         domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost' 
     }
 }));
-
-
 
 // Passport configuration
 app.use(passport.initialize());
@@ -150,6 +148,17 @@ app.get('/callback', async (req, res) => {
         console.error('Error in Spotify callback:', error);
         res.redirect('/error');
     }
+});
+
+//handle sign out 
+app.post('/signout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            return res.status(500).json({ message: 'Sign-out failed' });
+        }
+        res.clearCookie('connect.sid', { path: '/', httpOnly: true, sameSite: 'lax', domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost' });
+        res.status(200).json({ message: 'Signed out successfully' });
+    });
 });
 
 // Image processing routes

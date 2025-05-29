@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import EditPage from './views/EditPage';
-import Home from './views/Home';
+import Home from './views/home';
 import Menu from './views/Menu';
 import SignIn from './views/SignIn';
 import SignUp from './views/SignUp';

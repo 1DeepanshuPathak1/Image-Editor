@@ -16,7 +16,13 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme, isSp
         setShowSignOutDialog(true);
     };
 
-    const handleSignOutConfirm = () => {
+    const handleSignOutConfirm = async () => {
+        await fetch('http://localhost:3000/signout', {
+            method: 'POST',
+            credentials: 'include'
+        });
+        sessionStorage.clear();
+        localStorage.clear();
         setIsSignedIn(false);
         onSpotifyConnection(false);
         toggleMenu();
