@@ -38,10 +38,12 @@ img {
     text-align: center;
     max-width: 600px;
     margin: 0 auto;
-    background-color: #212121;
+    background-color: #0f0f0f;
     border-radius: 10px;
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+    margin-top: 50px;
+    border: 1px solid #333;
 }
 
 .title {

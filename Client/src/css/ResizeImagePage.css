@@ -1,12 +1,14 @@
 .resize-image-container {
     padding: 20px;
-    background-color: #212121;
+    background-color: #0f0f0f;
     color: #ffffff;
     border-radius: 8px;
     max-width: 800px;
     margin: 20px auto;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     overflow: hidden;
+    margin-top: 50px;
+    border: 1px solid #333;
 }
 
 .resize-image-container h1 {
