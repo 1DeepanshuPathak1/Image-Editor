@@ -117,7 +117,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                         background: 'none',
                         border: 'none',
                         color: '#fff',
-                        cursor: 'pointer',
+                        cursor: 'none',
                         padding: '4px',
                         zIndex: 10002,
                         pointerEvents: 'auto'
@@ -212,7 +212,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                         padding: 12px;
                         border-radius: 8px;
                         background: #1a1a1a;
-                        cursor: pointer;
+                        cursor: none;
                         transition: all 0.2s;
                     }
                     .share-item:hover {
@@ -236,7 +236,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        cursor: pointer;
+                        cursor: none;
                         color: white;
                         transition: all 0.2s;
                         z-index: 100;
@@ -284,7 +284,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                         background-color: #1a1a1a;
                         color: #fff;
                         font-size: 14px;
-                        cursor: pointer;
+                        cursor: none;
                     }
                     .preview-container {
                         position: relative;
@@ -308,7 +308,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                         border: none;
                         border-radius: 4px;
                         padding: 6px;
-                        cursor: pointer;
+                        cursor: none;
                         color: white;
                         display: flex;
                         align-items: center;
@@ -339,7 +339,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                         background: none;
                         border: none;
                         color: #fff;
-                        cursor: pointer;
+                        cursor: none;
                         padding: 4px;
                         display: flex;
                         align-items: center;
@@ -385,7 +385,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                             background: 'none',
                             border: 'none',
                             color: '#fff',
-                            cursor: 'pointer',
+                            cursor: 'none',
                             padding: '4px'
                         }}
                     >
@@ -506,7 +506,7 @@ const DownloadDialog = ({ isOpen, onClose, imageUrl, onDownload }) => {
                                 border: 'none',
                                 backgroundColor: '#fff',
                                 color: '#000',
-                                cursor: 'pointer',
+                                cursor: 'none',
                                 fontSize: '14px',
                                 fontWeight: '500',
                                 transition: 'background-color 0.2s'

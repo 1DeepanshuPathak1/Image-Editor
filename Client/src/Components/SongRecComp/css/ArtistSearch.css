@@ -15,7 +15,7 @@
     top: 40%;
     transform: translateY(-50%);
     color: #666;
-    pointer-events: none;
+    none-events: none;
 }
 
 .sr-search-input {
@@ -57,7 +57,7 @@
     display: flex;
     align-items: center;
     padding: 8px 12px;
-    cursor: pointer;
+    cursor: none;
     transition: background-color 0.2s;
     border-bottom: 1px solid #232326;
 }

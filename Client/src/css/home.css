@@ -1,7 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
-html {
+html, body {
   scroll-behavior: smooth;
+  cursor: none;
 }
 
 body {
@@ -9,7 +10,6 @@ body {
   background: #0a0a0a;
   color: #ffffff;
   overflow: hidden;
-  cursor: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -20,98 +20,9 @@ body {
   height: 100vh;
   overflow: hidden;
   background: radial-gradient(ellipse at center, #111111 0%, #0a0a0a 100%);
+  cursor: none;
 }
 
-/* Custom Cursor */
-.vizion-cursor {
-  position: fixed;
-  pointer-events: none;
-  z-index: 9999;
-  mix-blend-mode: difference;
-  transform: translateZ(0);
-  will-change: transform;
-  transition: transform 0.2s ease;
-}
-
-.vizion-cursor-dot {
-  width: 4px;
-  height: 4px;
-  background: #00ff87;
-  border-radius: 50%;
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  transform: translateZ(0);
-  will-change: transform;
-  transition: transform 0.2s ease;
-}
-
-.vizion-cursor-ring {
-  width: 24px;
-  height: 24px;
-  border: 1px solid rgba(0, 255, 135, 0.3);
-  border-radius: 50%;
-  position: absolute;
-  top: -12px;
-  left: -12px;
-  transform: translateZ(0);
-  will-change: transform;
-  transition: transform 0.2s ease;
-}
-
-.vizion-cursor--hover {
-  transform: scale(1.5);
-  mix-blend-mode: normal;
-  background: rgba(0, 255, 135, 0.1);
-}
-
-.vizion-cursor--hover .vizion-cursor-dot {
-  transform: scale(2.5);
-  background: #00ff87;
-}
-
-.vizion-cursor--hover .vizion-cursor-ring {
-  transform: scale(0);
-  border-color: rgba(0, 255, 135, 0.5);
-}
-
-.vizion-cursor--clickable {
-  transform: scale(1.5);
-  mix-blend-mode: normal;
-}
-
-.vizion-cursor--clickable .vizion-cursor-dot {
-  transform: scale(2.5);
-  background: #00ff87;
-}
-
-.vizion-cursor--clickable .vizion-cursor-ring {
-  transform: scale(0);
-}
-
-/* Click Ripples */
-.vizion-click-ripple {
-  position: fixed;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 255, 135, 0.4) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 9998;
-  animation: vizion-ripple-expand 1s ease-out forwards;
-}
-
-@keyframes vizion-ripple-expand {
-  to {
-    width: 200px;
-    height: 200px;
-    margin-left: -100px;
-    margin-top: -100px;
-    opacity: 0;
-  }
-}
-
-/* Animated Grid Background */
 .vizion-grid-background {
   position: absolute;
   top: 0;
@@ -150,7 +61,6 @@ body {
   100% { opacity: 0; }
 }
 
-/* Floating Orbs */
 .vizion-floating-orbs {
   position: absolute;
   top: 0;
@@ -198,7 +108,6 @@ body {
   }
 }
 
-/* Navigation */
 .vizion-slide-nav {
   position: fixed;
   right: 40px;
@@ -234,7 +143,7 @@ body {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
-  cursor: pointer;
+  cursor: none;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
 }
@@ -274,7 +183,6 @@ body {
   transform: translateY(-50%) translateX(-5px);
 }
 
-/* Slides */
 .vizion-slides-wrapper {
   transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   will-change: transform;
@@ -307,7 +215,6 @@ body {
   min-height: 70vh;
 }
 
-/* Icon Section */
 .vizion-icon-section {
   display: flex;
   flex-direction: column;
@@ -351,7 +258,6 @@ body {
   50% { transform: translateY(-8px); }
 }
 
-/* Stats Card */
 .vizion-stats-card {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
@@ -384,7 +290,6 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* Features List */
 .vizion-features-list {
   display: flex;
   flex-direction: column;
@@ -431,9 +336,10 @@ body {
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   backdrop-filter: blur(20px);
   position: relative;
-  z-index: 100;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  z-index: 1000;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .vizion-feature-btn:hover {
@@ -445,10 +351,10 @@ body {
 
 .vizion-feature-btn:active {
   transform: translateY(1px);
+  background: rgba(0, 255, 135, 0.3);
   transition: all 0.1s ease;
 }
 
-/* Text Section */
 .vizion-text-section {
   display: flex;
   flex-direction: column;
@@ -463,20 +369,22 @@ body {
   font-size: clamp(3rem, 8vw, 5rem);
   font-weight: 800;
   line-height: 0.9;
-  margin-bottom: 16px;
+  margin-bottom: 25px;
   background: linear-gradient(135deg, #ffffff 0%, #cccccc 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
+  text-align: left;
 }
 
 .vizion-slide-subtitle {
   font-size: 1.5rem;
   font-weight: 300;
   color: #00ff87;
-  margin-bottom: 24px;
+  margin-bottom: 0;
   letter-spacing: 0.02em;
+  text-align: left;
 }
 
 .vizion-slide-description {
@@ -485,9 +393,10 @@ body {
   color: rgba(255, 255, 255, 0.7);
   margin-bottom: 40px;
   max-width: 520px;
+  text-align: left;
+  margin-top: 5px;
 }
 
-/* Action Group */
 .vizion-action-group {
   display: flex;
   align-items: center;
@@ -510,19 +419,21 @@ body {
   transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   backdrop-filter: blur(20px);
   position: relative;
-  overflow: hidden;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
+  z-index: 1000;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .vizion-primary-btn:hover, .vizion-feature-btn:hover {
-  transform: translate3d(0, -2px, 0);
+  transform: translateY(-2px);
   background: rgba(0, 255, 135, 0.2);
   border-color: #00ff87;
+  box-shadow: 0 20px 40px rgba(0, 255, 135, 0.3);
 }
 
 .vizion-primary-btn:active, .vizion-feature-btn:active {
-  transform: translate3d(0, 1px, 0);
+  transform: translateY(1px);
   background: rgba(0, 255, 135, 0.3);
   transition: all 0.1s ease;
 }
@@ -542,7 +453,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 50%;
   color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
+  cursor: none;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
 }
@@ -554,7 +465,6 @@ body {
   transform: translateY(-2px);
 }
 
-/* Scroll Hint */
 .vizion-scroll-hint {
     position: absolute;
     bottom: 40px;
@@ -578,7 +488,6 @@ body {
     60% { transform: translateY(-5px); }
 }
 
-/* Decorative Shapes */
 .vizion-decorative-shapes {
     position: absolute;
     top: 0;
@@ -618,7 +527,6 @@ body {
     transform: translate(-50%, -50%);
 }
 
-/* Progress Indicator */
 .vizion-progress-container {
     position: fixed;
     bottom: 40px;
@@ -649,7 +557,6 @@ body {
     color: rgba(255, 255, 255, 0.6);
 }
 
-/* Brand Mark */
 .vizion-brand-mark {
     position: fixed;
     top: 21px;
@@ -675,7 +582,6 @@ body {
     color: #00ff87;
 }
 
-/* Responsive Adjustments */
 @media (max-width: 1200px) {
     .vizion-content-grid {
         gap: 40px;

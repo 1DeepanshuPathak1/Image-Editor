@@ -31,6 +31,7 @@
 #presetSelect{
     color: #666;
     background-color: #121212;
+    cursor: none;
 }
 .image-box {
     text-align: center;
@@ -58,6 +59,7 @@ input[type="number"] {
     position: relative;
     width: 70px;
     z-index: 100;
+    cursor: none;
 }
 
 input[type="file"] {
@@ -71,6 +73,7 @@ input[type="file"] {
     box-sizing: border-box;
     position: relative;
     z-index: 100;
+    cursor: none;
 }
 
 
@@ -89,7 +92,7 @@ select {
     color: white;
     border: none;
     padding: 10px 15px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.5s ease;
     position: relative;
@@ -177,6 +180,7 @@ select {
     border-radius: 4px;
     background-color: #2f2f2f;
     color: #ffffff;
+    cursor: none;
 }
 
 .download-options select {
@@ -192,7 +196,7 @@ select {
     color: white;
     border: none;
     padding: 10px 15px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.5s ease;
 }
@@ -219,10 +223,12 @@ select {
     border-radius: 4px;
     background-color: #2f2f2f;
     color: #ffffff;
+    cursor: none;
 }
 
 .compression-options input[type="number"] {
     width: 150px;
+    cursor: none;
 }
 
 .compression-options p {

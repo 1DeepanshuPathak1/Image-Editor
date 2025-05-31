@@ -100,7 +100,7 @@ const AlertDialog = ({ isOpen, onClose, onConfirm }) => {
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 backgroundColor: '#0f0f0f',
                 color: '#fff',
-                cursor: 'pointer',
+                cursor: 'none',
                 fontSize: '14px',
                 fontWeight: '500',
                 transition: 'background-color 0.2s'
@@ -118,7 +118,7 @@ const AlertDialog = ({ isOpen, onClose, onConfirm }) => {
                 border: 'none',
                 backgroundColor: '#fff',
                 color: '#000',
-                cursor: 'pointer',
+                cursor: 'none',
                 fontSize: '14px',
                 fontWeight: '500',
                 transition: 'background-color 0.2s'

@@ -1,0 +1,86 @@
+.vizion-cursor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 100000;
+  mix-blend-mode: difference;
+  transform: translate3d(0,0,0);
+  will-change: transform;
+  transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.vizion-cursor-dot {
+  width: 4px;
+  height: 4px;
+  background: #00ff87;
+  border-radius: 50%;
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  transform: translateZ(0);
+  will-change: transform;
+  transition: transform 0.2s ease;
+}
+
+.vizion-cursor-ring {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(0, 255, 135, 0.3);
+  border-radius: 50%;
+  position: absolute;
+  top: -13px;
+  left: -13px;
+  transform: translateZ(0);
+  will-change: transform;
+  transition: transform 0.2s ease;
+}
+
+.vizion-cursor--hover {
+  transform: scale(1.5);
+  mix-blend-mode: normal;
+  background: rgba(255, 0, 0, 0.1);
+}
+
+.vizion-cursor--hover .vizion-cursor-dot {
+  transform: scale(2);
+  background: #00ff87;
+}
+
+.vizion-cursor--hover .vizion-cursor-ring {
+  transform: scale(1.5);
+  opacity: 0.5;
+}
+
+.vizion-cursor--clickable {
+  transform: scale(1.5);
+  mix-blend-mode: normal;
+}
+
+.vizion-cursor--clickable .vizion-cursor-dot {
+  transform: scale(2.5);
+  background: #00ff87;
+}
+
+.vizion-cursor--clickable .vizion-cursor-ring {
+  transform: scale(0);
+}
+
+.vizion-click-ripple {
+  position: fixed;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 255, 135, 0.4) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 9998;
+  animation: vizion-ripple-expand 1s ease-out forwards;
+}
+
+@keyframes vizion-ripple-expand {
+  to {
+    width: 200px;
+    height: 200px;
+    margin-left: -100px;
+    margin-top: -100px;
+    opacity: 0;
+  }
+}

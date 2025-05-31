@@ -66,6 +66,7 @@ img {
     box-sizing: border-box;
     position: relative;
     z-index: 2;
+    cursor: none;
 }
 
 .upload-button {
@@ -74,7 +75,7 @@ img {
     color: white;
     border: none;
     border-radius: 5px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
     transition: box-shadow 0.5s ease;
     position: relative;
@@ -194,7 +195,7 @@ img {
     color: white;
     border: none;
     border-radius: 5px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.6 s ease;
     z-index: 2000;
@@ -211,7 +212,7 @@ img {
     color: white;
     border: 0.5px solid #666;
     border-radius: 5px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.2 ease;
     z-index: 2000;
@@ -245,7 +246,7 @@ img {
     color: white;
     border-radius: 5px;
     padding: 10px 15px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 1s ease;
     z-index: 100;
@@ -264,7 +265,7 @@ img {
     color: white;
     border-radius: 5px;
     padding: 10px 15px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 1s ease;
     z-index: 200;
@@ -279,6 +280,7 @@ img {
     max-width: 500px;
     margin: 0 auto;
     z-index: 5;
+    cursor: none;
 }
 
 .slider-container {
@@ -309,7 +311,7 @@ img {
     color: white;
     border: none;
     border-radius: 5px;
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 1s ease;
     z-index: 5;

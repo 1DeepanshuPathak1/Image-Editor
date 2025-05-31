@@ -8,6 +8,7 @@
     color: white; 
     transition: left 0.3s ease;
     z-index: 2000; 
+    cursor: none;
 }
 
 .menu-button {
@@ -20,7 +21,7 @@
     color: white;
     border: none;
     padding: 10px 15px; 
-    cursor: pointer;
+    cursor: none;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.5s ease; 
     z-index: 10001;
@@ -52,6 +53,7 @@
     display: block; 
     padding: 10px;
     transition: background-color 0.2s;
+    cursor: none;
 }
 
 .menu a:hover {
@@ -64,7 +66,7 @@
     border: none;
     padding: 10px;
     margin: 10px 0;
-    cursor: pointer;
+    cursor: none;
     width: 100%;
     text-align: center;
     transition: background-color 0.2s;
@@ -86,7 +88,7 @@
     border: none;
     padding: 10px;
     margin: 10px 0;
-    cursor: pointer;
+    cursor: none;
     font-size: 14px;
     display: flex;
     align-items: center;
@@ -117,7 +119,7 @@
     border: none;
     padding: 10px;
     margin: 10px 0;
-    cursor: pointer;
+    cursor: none;
     font-size: 14px;
     width: 100%;
     display: flex;

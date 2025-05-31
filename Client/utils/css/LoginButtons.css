@@ -50,7 +50,7 @@
     border: 1px solid #666;
     background-color: #09090b;
     font-size: 16px;
-    cursor: pointer;
+    cursor: none;
     transition: all 0.6s ease-in-out;
     margin: 10px;
     

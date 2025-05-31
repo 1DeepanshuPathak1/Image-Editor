@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect} from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import EditPage from './views/EditPage';
 import Home from './views/home';
@@ -11,6 +11,7 @@ import ColorHarmonyPage from './views/ColorHarmony';
 import SongRecommenderPage from './views/SongRecommender';
 import { useSonner } from '../utils/ui/Sonner';
 import './css/Menu.css'
+import CustomCursor from './Components/SiteComps/CustomCursor';
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
@@ -73,6 +74,7 @@ function App() {
 
     return (
         <div>
+            <CustomCursor />
             <Menu 
                 isOpen={isMenuOpen} 
                 toggleMenu={toggleMenu} 

@@ -26,7 +26,7 @@
     background: transparent;
     border: none;
     color: #9ca3af;
-    cursor: pointer;
+    cursor: none;
     padding: 8px;
     border-radius: 6px;
     transition: all 0.2s ease;
@@ -64,7 +64,7 @@
     background: transparent;
     border: none;
     color: #9ca3af;
-    cursor: pointer;
+    cursor: none;
     padding: 8px;
     border-radius: 6px;
     transition: all 0.2s ease;
@@ -90,7 +90,7 @@
     border: none;
     color: #9ca3af;
     padding: 12px 0;
-    cursor: pointer;
+    cursor: none;
     font-size: 14px;
     position: relative;
     transition: all 0.3s ease;
@@ -191,7 +191,7 @@
     background: transparent;
     border: none;
     color: #9ca3af;
-    cursor: pointer;
+    cursor: none;
     padding: 6px;
     border-radius: 4px;
     transition: all 0.2s ease;
@@ -212,7 +212,7 @@
     background: transparent;
     border: none;
     color: #5865f2;
-    cursor: pointer;
+    cursor: none;
     padding: 8px;
     border-radius: 6px;
     transition: all 0.2s ease;
@@ -336,7 +336,7 @@
     background: transparent;
     border: none;
     color: #9ca3af;
-    cursor: pointer;
+    cursor: none;
     padding: 2px;
     border-radius: 50%;
     display: flex;
@@ -354,7 +354,7 @@
     background: transparent;
     border: none;
     color: #43b581;
-    cursor: pointer;
+    cursor: none;
     padding: 8px;
     border-radius: 6px;
     transition: all 0.2s ease;

@@ -7,9 +7,6 @@ const Home = () => {
   const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isHovering, setIsHovering] = useState(false);
-  const [ripples, setRipples] = useState([]);
   const containerRef = useRef(null);
 
   const slides = [
@@ -78,30 +75,10 @@ const Home = () => {
       setTimeout(() => setIsScrolling(false), 1000);
     };
 
-    const handleMouseMove = (e) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-
-    const handleClick = (e) => {
-      const newRipple = {
-        id: Date.now(),
-        x: e.clientX,
-        y: e.clientY
-      };
-      setRipples(prev => [...prev, newRipple]);
-      setTimeout(() => {
-        setRipples(prev => prev.filter(ripple => ripple.id !== newRipple.id));
-      }, 1000);
-    };
-
     window.addEventListener('wheel', handleScroll, { passive: true });
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('click', handleClick);
     
     return () => {
       window.removeEventListener('wheel', handleScroll);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('click', handleClick);
     };
   }, [currentSlide, isScrolling, slides.length]);
 
@@ -133,38 +110,12 @@ const Home = () => {
 
   return (
     <div className="vizion-homepage-container" ref={containerRef}>
-      {/* Custom Cursor */}
-      <div 
-        className={`vizion-cursor ${isHovering ? 'vizion-cursor--hover' : ''}`}
-        style={{
-          left: mousePosition.x,
-          top: mousePosition.y
-        }}
-      >
-        <div className="vizion-cursor-dot" />
-        <div className="vizion-cursor-ring" />
-      </div>
-
-      {/* Click Ripples */}
-      {ripples.map(ripple => (
-        <div
-          key={ripple.id}
-          className="vizion-click-ripple"
-          style={{
-            left: ripple.x,
-            top: ripple.y
-          }}
-        />
-      ))}
-
-      {/* Animated Grid Background */}
       <div className="vizion-grid-background">
         {[...Array(20)].map((_, i) => (
           <div key={i} className="vizion-grid-line" style={{ '--delay': `${i * 0.1}s` }} />
         ))}
       </div>
 
-      {/* Floating Orbs */}
       <div className="vizion-floating-orbs">
         {[...Array(6)].map((_, i) => (
           <div
@@ -179,7 +130,6 @@ const Home = () => {
         ))}
       </div>
 
-      {/* Navigation */}
       <nav className="vizion-slide-nav">
         <div className="vizion-nav-track">
           <div 
@@ -191,8 +141,6 @@ const Home = () => {
               key={index}
               className={`vizion-nav-dot ${currentSlide === index ? 'vizion-nav-dot--active' : ''}`}
               onClick={() => goToSlide(index)}
-              onMouseEnter={() => setIsHovering(true)}
-              onMouseLeave={() => setIsHovering(false)}
             >
               <span className="vizion-nav-tooltip">{slides[index].title}</span>
             </button>
@@ -200,7 +148,6 @@ const Home = () => {
         </div>
       </nav>
 
-      {/* Slides Container */}
       <div className="vizion-slides-wrapper" style={{
         transform: `translateY(-${currentSlide * 100}vh)`
       }}>
@@ -215,7 +162,6 @@ const Home = () => {
             >
               <div className="vizion-slide-content">
                 <div className="vizion-content-grid">
-                  {/* Icon Section */}
                   <div className="vizion-icon-section">
                     <div className="vizion-icon-wrapper">
                       <div className="vizion-icon-glow" />
@@ -245,7 +191,6 @@ const Home = () => {
                     )}
                   </div>
 
-                  {/* Text Section */}
                   <div className="vizion-text-section">
                     <div className="vizion-text-content">
                       <h1 className="vizion-slide-title">{slide.title}</h1>
@@ -257,8 +202,7 @@ const Home = () => {
                           <button 
                             className="vizion-primary-btn"
                             onClick={nextSlide}
-                            onMouseEnter={() => setIsHovering(true)}
-                            onMouseLeave={() => setIsHovering(false)}
+                            style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}
                           >
                             <span>Explore Features</span>
                             <ArrowRight size={18} />
@@ -267,9 +211,7 @@ const Home = () => {
                           <button 
                             className="vizion-feature-btn"
                             onClick={() => handleFeatureClick(slide.id)}
-                            onMouseEnter={() => setIsHovering(true)}
-                            onMouseLeave={() => setIsHovering(false)}
-                            style={{ pointerEvents: 'auto' }}
+                            style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}
                           >
                             <Play size={14} />
                             <span>Try {slide.title}</span>
@@ -278,10 +220,14 @@ const Home = () => {
                         
                         {index === 0 && (
                           <div className="vizion-social-links">
-                            <button className="vizion-social-btn">
+                            <button 
+                              className="vizion-social-btn vizion-clickable"
+                            >
                               <Github size={16} />
                             </button>
-                            <button className="vizion-social-btn">
+                            <button 
+                              className="vizion-social-btn vizion-clickable"
+                            >
                               <Twitter size={16} />
                             </button>
                           </div>
@@ -292,7 +238,6 @@ const Home = () => {
                 </div>
               </div>
 
-              {/* Scroll Indicator */}
               {index < slides.length - 1 && (
                 <div className="vizion-scroll-hint">
                   <div className="vizion-scroll-icon">
@@ -302,7 +247,6 @@ const Home = () => {
                 </div>
               )}
 
-              {/* Decorative Elements */}
               <div className="vizion-decorative-shapes">
                 <div className="vizion-shape vizion-shape--1" />
                 <div className="vizion-shape vizion-shape--2" />
@@ -313,7 +257,6 @@ const Home = () => {
         })}
       </div>
 
-      {/* Progress Indicator */}
       <div className="vizion-progress-container">
         <div className="vizion-progress-track">
           <div 
@@ -326,7 +269,6 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Brand Mark */}
       <div className="vizion-brand-mark">
         <div className="vizion-brand-icon">
           <Sparkles size={20} />

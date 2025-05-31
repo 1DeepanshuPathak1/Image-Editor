@@ -54,7 +54,7 @@
     padding: 32px;
     border: 2px dashed #1a1a1a;
     border-radius: 8px;
-    cursor: pointer;
+    cursor: none;
     transition: all 0.2s;
     color: #666;
 }
@@ -92,7 +92,7 @@
     align-items: center;
     justify-content: center;
     color: white;
-    cursor: pointer;
+    cursor: none;
     transition: background-color 0.2s;
 }
 
@@ -137,7 +137,7 @@
 }
 
 .ch-info-icon {
-    cursor: pointer;
+    cursor: none;
     opacity: 0.7;
     transition: opacity 0.2s;
 }
@@ -154,7 +154,7 @@
 
 .ch-color-swatch-container {
     position: relative;
-    cursor: pointer;
+    cursor: none;
     width: 48px;
     height: 48px;
     aspect-ratio: 1;
@@ -332,7 +332,7 @@
     border-radius: 0.375rem;
     padding: 0.25rem;
     transition: all 200ms;
-    cursor: pointer;
+    cursor: none;
 }
 .undo-button{
     padding: 0;
