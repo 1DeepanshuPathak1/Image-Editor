@@ -146,6 +146,7 @@ body {
   cursor: none;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  pointer-events: auto;
 }
 
 .vizion-nav-dot:hover {
@@ -186,6 +187,8 @@ body {
 .vizion-slides-wrapper {
   transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   will-change: transform;
+  position: relative;
+  z-index: 10;
 }
 
 .vizion-slide {
@@ -200,7 +203,7 @@ body {
 
 .vizion-slide-content {
   position: relative;
-  z-index: 10;
+  z-index: 20;
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 60px;
@@ -281,6 +284,7 @@ body {
   font-weight: 600;
   color: #00ff87;
   margin-bottom: 4px;
+  user-select: text;
 }
 
 .vizion-stat-label {
@@ -288,6 +292,7 @@ body {
   color: rgba(255, 255, 255, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  user-select: text;
 }
 
 .vizion-features-list {
@@ -308,6 +313,7 @@ body {
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.8);
   transition: all 0.3s ease;
+  user-select: text;
 }
 
 .vizion-feature-item:hover {
@@ -376,6 +382,7 @@ body {
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.02em;
   text-align: left;
+  user-select: text;
 }
 
 .vizion-slide-subtitle {
@@ -385,6 +392,7 @@ body {
   margin-bottom: 0;
   letter-spacing: 0.02em;
   text-align: left;
+  user-select: text;
 }
 
 .vizion-slide-description {
@@ -395,6 +403,7 @@ body {
   max-width: 520px;
   text-align: left;
   margin-top: 5px;
+  user-select: text;
 }
 
 .vizion-action-group {
@@ -456,6 +465,9 @@ body {
   cursor: none;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  pointer-events: auto;
+  position: relative;
+  z-index: 1000;
 }
 
 .vizion-social-btn:hover {
@@ -476,6 +488,8 @@ body {
     gap: 8px;
     color: rgba(255, 255, 255, 0.6);
     animation: vizion-fade-in-up 2s ease-in-out infinite;
+    user-select: text;
+    z-index: 15;
 }
 
 .vizion-scroll-icon {
@@ -555,6 +569,7 @@ body {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     color: rgba(255, 255, 255, 0.6);
+    user-select: text;
 }
 
 .vizion-brand-mark {
@@ -568,6 +583,7 @@ body {
     color: white;
     font-weight: 600;
     font-size: 1.2rem;
+    user-select: text;
 }
 
 .vizion-brand-icon {

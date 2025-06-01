@@ -94,10 +94,7 @@ function App() {
                 <Route path="/upscale" element={isSignedIn ? <UpscalePage /> : <Navigate to="/signin" state={{from:'/upscale'}} />} />
                 <Route path="/Color-Harmony" element={isSignedIn ? <ColorHarmonyPage/> : <Navigate to="/signin" state={{from:'/Color-Harmony'}}/>}/>
                 <Route path="/auth/google/callback" element={ <Navigate to="/" replace />} />
-                <Route 
-                    path="/song-recommender" 
-                    element={<SongRecommenderPage />}
-                />
+                <Route path="/song-recommender" element={isSignedIn ?<SongRecommenderPage />: <Navigate to="/signin" state={{from:'/song-recommender'}}/>}/>
             </Routes>
             
             <ToastContainer />

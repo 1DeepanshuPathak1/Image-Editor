@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Sparkles, Palette, Zap, Scissors, Edit3, Music, ArrowRight, Play, Star, Github, Twitter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useSonner } from '../../utils/ui/Sonner';
 import '../css/home.css';
 
 const Home = () => {
   const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
   const containerRef = useRef(null);
+  const { showToast, ToastContainer } = useSonner();
 
   const slides = [
     {
@@ -61,22 +65,45 @@ const Home = () => {
   ];
 
   useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/auth/check', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+        setIsSignedIn(data.isAuthenticated);
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setIsSignedIn(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const storedConnection = sessionStorage.getItem('spotifyConnected');
+    if (storedConnection === 'true') {
+      setIsSpotifyConnected(true);
+    }
+  }, []);
+
+  useEffect(() => {
     const handleScroll = (e) => {
       if (isScrolling) return;
-      
+
       setIsScrolling(true);
-      
+
       if (e.deltaY > 0 && currentSlide < slides.length - 1) {
         setCurrentSlide(prev => prev + 1);
       } else if (e.deltaY < 0 && currentSlide > 0) {
         setCurrentSlide(prev => prev - 1);
       }
-      
+
       setTimeout(() => setIsScrolling(false), 1000);
     };
 
     window.addEventListener('wheel', handleScroll, { passive: true });
-    
+
     return () => {
       window.removeEventListener('wheel', handleScroll);
     };
@@ -102,6 +129,25 @@ const Home = () => {
       'image-resizer': '/resize-image',
       'image-editor': '/edit'
     };
+
+    if (!isSignedIn) {
+      showToast(
+        "Authentication Required",
+        "Please sign in to access this feature."
+      );
+      setTimeout(() => {
+        navigate('/signin', { state: { from: routeMap[slideId] } });
+      }, 1000);
+      return;
+    }
+
+    if (slideId === 'song-recommender' && !isSpotifyConnected) {
+      showToast(
+        "Spotify Connection Required",
+        "Please connect your Spotify account to access the Song Recommender."
+      );
+      return;
+    }
 
     if (routeMap[slideId]) {
       navigate(routeMap[slideId]);
@@ -132,7 +178,7 @@ const Home = () => {
 
       <nav className="vizion-slide-nav">
         <div className="vizion-nav-track">
-          <div 
+          <div
             className="vizion-nav-indicator"
             style={{ transform: `translateY(${currentSlide * 32}px)` }}
           />
@@ -154,7 +200,7 @@ const Home = () => {
         {slides.map((slide, index) => {
           const Icon = slide.icon;
           const isActive = currentSlide === index;
-          
+
           return (
             <div
               key={slide.id}
@@ -167,7 +213,7 @@ const Home = () => {
                       <div className="vizion-icon-glow" />
                       <Icon size={64} className="vizion-slide-icon" />
                     </div>
-                    
+
                     {slide.stats && (
                       <div className="vizion-stats-card">
                         {Object.entries(slide.stats).map(([key, value]) => (
@@ -196,19 +242,18 @@ const Home = () => {
                       <h1 className="vizion-slide-title">{slide.title}</h1>
                       <h2 className="vizion-slide-subtitle">{slide.subtitle}</h2>
                       <p className="vizion-slide-description">{slide.description}</p>
-                      
+
                       <div className="vizion-action-group">
                         {index === 0 ? (
-                          <button 
+                          <button
                             className="vizion-primary-btn"
                             onClick={nextSlide}
-                            style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}
                           >
                             <span>Explore Features</span>
                             <ArrowRight size={18} />
                           </button>
                         ) : (
-                          <button 
+                          <button
                             className="vizion-feature-btn"
                             onClick={() => handleFeatureClick(slide.id)}
                             style={{ pointerEvents: 'auto', position: 'relative', zIndex: 1000 }}
@@ -217,15 +262,15 @@ const Home = () => {
                             <span>Try {slide.title}</span>
                           </button>
                         )}
-                        
+
                         {index === 0 && (
                           <div className="vizion-social-links">
-                            <button 
+                            <button
                               className="vizion-social-btn vizion-clickable"
                             >
                               <Github size={16} />
                             </button>
-                            <button 
+                            <button
                               className="vizion-social-btn vizion-clickable"
                             >
                               <Twitter size={16} />
@@ -259,7 +304,7 @@ const Home = () => {
 
       <div className="vizion-progress-container">
         <div className="vizion-progress-track">
-          <div 
+          <div
             className="vizion-progress-fill"
             style={{ width: `${((currentSlide + 1) / slides.length) * 100}%` }}
           />
@@ -275,6 +320,8 @@ const Home = () => {
         </div>
         <span>Vizion</span>
       </div>
+      
+      <ToastContainer />
     </div>
   );
 };

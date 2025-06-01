@@ -15,7 +15,7 @@
     top: 40%;
     transform: translateY(-50%);
     color: #666;
-    none-events: none;
+    pointer-events: none;
 }
 
 .sr-search-input {
