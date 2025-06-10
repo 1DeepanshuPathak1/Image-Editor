@@ -1,5 +1,5 @@
-import { useState, useEffect} from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import EditPage from './views/EditPage';
 import Home from './views/home';
 import Menu from './views/Menu';
@@ -10,37 +10,46 @@ import UpscalePage from './views/UpscalePage';
 import ColorHarmonyPage from './views/ColorHarmony';
 import SongRecommenderPage from './views/SongRecommender';
 import { useSonner } from '../utils/ui/Sonner';
-import './css/Menu.css'
+import './css/Menu.css';
 import CustomCursor from './Components/SiteComps/CustomCursor';
 
 function App() {
     const [isMenuOpen, setMenuOpen] = useState(false);
     const [isSignedIn, setIsSignedIn] = useState(false);
     const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
     const { showToast, ToastContainer } = useSonner();
+    const location = useLocation();
 
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const response = await fetch('http://localhost:3000/auth/check', {
-                    credentials: 'include'
-                });
-                const data = await response.json();
-                setIsSignedIn(data.isAuthenticated);
-            } catch (error) {
-                console.error('Auth check failed:', error);
-                setIsSignedIn(false);
+    const checkAuth = async () => {
+        try {
+            setIsAuthLoading(true);
+            const response = await fetch('http://localhost:3000/auth/check', {
+                credentials: 'include'
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
             }
-        };
-        checkAuth();
-    }, []);
+            const data = await response.json();
+            setIsSignedIn(data.isAuthenticated);
+            setIsSpotifyConnected(data.spotifyConnected);
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            setIsSignedIn(false);
+            setIsSpotifyConnected(false);
+        } finally {
+            setIsAuthLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const storedConnection = sessionStorage.getItem('spotifyConnected');
-        if (storedConnection === 'true') {
-            setIsSpotifyConnected(true);
+        checkAuth();
+        // Re-run checkAuth if redirected from Spotify callback
+        const searchParams = new URLSearchParams(location.search);
+        if (searchParams.get('spotifyCallback') === 'true') {
+            checkAuth();
         }
-    }, []);
+    }, [location]);
 
     const toggleMenu = () => {
         setMenuOpen(!isMenuOpen);
@@ -72,6 +81,10 @@ function App() {
         return true;
     };
 
+    if (isAuthLoading) {
+        return <div>Loading...</div>;
+    }
+
     return (
         <div>
             <CustomCursor />
@@ -93,8 +106,8 @@ function App() {
                 <Route path="/resize-image" element={isSignedIn ? <ResizeImagePage /> : <Navigate to="/signin" state={{from:'/resize-image'}} />} />
                 <Route path="/upscale" element={isSignedIn ? <UpscalePage /> : <Navigate to="/signin" state={{from:'/upscale'}} />} />
                 <Route path="/Color-Harmony" element={isSignedIn ? <ColorHarmonyPage/> : <Navigate to="/signin" state={{from:'/Color-Harmony'}}/>}/>
-                <Route path="/auth/google/callback" element={ <Navigate to="/" replace />} />
-                <Route path="/song-recommender" element={isSignedIn ?<SongRecommenderPage />: <Navigate to="/signin" state={{from:'/song-recommender'}}/>}/>
+                <Route path="/auth/google/callback" element={<Navigate to="/" replace />} />
+                <Route path="/song-recommender" element={isSignedIn && isSpotifyConnected ? <SongRecommenderPage /> : <Navigate to="/signin" state={{from:'/song-recommender'}}/>}/>
             </Routes>
             
             <ToastContainer />

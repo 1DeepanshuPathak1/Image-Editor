@@ -163,7 +163,7 @@ const Home = () => {
       </div>
 
       <div className="vizion-floating-orbs">
-        {[...Array(6)].map((_, i) => (
+        {[...Array(8)].map((_, i) => (
           <div
             key={i}
             className="vizion-orb"

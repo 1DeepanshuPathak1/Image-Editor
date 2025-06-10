@@ -6,12 +6,15 @@ const session = require('express-session');
 const SpotifyWebApi = require('spotify-web-api-node');
 const { MongoDB } = require('./controllers/database');
 const MongoStore = require('connect-mongo');
-const { SignUp, SignIn, GoogleCallback, GitHubCallback, AuthCheck } = require('./controllers/connect');
+const { SignUp, SignIn, GoogleCallback, GitHubCallback, SpotifyCallback, SpotifyDisconnect, AuthCheck, isAuthenticated } = require('./controllers/connect');
 const { FilterRequest, UploadPost } = require('./controllers/Getrequests');
 const { ResizeImage } = require('./controllers/resizeImage');
 const { enhanceImage } = require('./controllers/UpscaleImage');
 const songRecommender = require('./controllers/songRecommender');
 const setupSongRoutes = require('./routes/songRoutes');
+const crypto = require('crypto');
+const mongoose = require('mongoose');
+const { User } = require('./models/User'); 
 require('dotenv').config();
 
 // Express app initialization
@@ -21,7 +24,7 @@ const connectionURL = 'mongodb://localhost:27017/imageEditorDB';
 
 // Middleware configuration
 const corsOptions = {
-    origin: process.env.CLIENT_URL,
+    origin: process.env.CLIENT_URL || 'http://localhost:3001',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
@@ -35,7 +38,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
     secret: process.env.SESSION_SECRET,
-    resave: true,
+    resave: false,
     saveUninitialized: false,
     store: MongoStore.create({
         mongoUrl: connectionURL,
@@ -45,12 +48,10 @@ app.use(session({
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000,
-        sameSite: 'lax',  
-        domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost' 
+        sameSite: 'lax'
     }
 }));
 
-// Passport configuration
 app.use(passport.initialize());
 app.use(passport.session());
 require('./passportConfig');
@@ -62,26 +63,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 const spotifyApi = new SpotifyWebApi({
     clientId: process.env.SPOTIFY_CLIENT_ID,
     clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-    redirectUri: 'http://localhost:3000/callback'
+    redirectUri: process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/spotify/callback'
 });
-
-// Refresh Spotify token periodically
-const refreshSpotifyToken = async () => {
-    try {
-        const data = await spotifyApi.clientCredentialsGrant();
-        spotifyApi.setAccessToken(data.body['access_token']);
-        console.log('Spotify token refreshed successfully');
-    } catch (error) {
-        console.error('Error refreshing Spotify token:', error);
-    }
-};
-
-// Initial token refresh and setup 45-minute refresh interval
-refreshSpotifyToken()
-    .then(() => {
-        global.spotifyRefreshInterval = setInterval(refreshSpotifyToken, 45 * 60 * 1000);
-    })
-    .catch(console.error);
 
 // Return To URL middleware
 app.use((req, _res, next) => {
@@ -104,7 +87,81 @@ app.get('/auth/github', (req, res, next) => {
     passport.authenticate('github', { scope: ['user:email'] })(req, res, next);
 });
 app.get('/auth/github/callback', GitHubCallback);
+app.get('/auth/spotify', (req, res, next) => {
+    const returnTo = req.query.returnTo || '/song-recommender';
+    req.session.returnTo = returnTo;
+    const state = crypto.randomUUID();
+    req.session.spotifyState = state;
+    try {
+        const authUrl = spotifyApi.createAuthorizeURL(['user-read-private', 'user-read-email'], state, { prompt: 'login' });
+        res.status(200).json({ authUrl });
+    } catch (error) {
+        console.error('Spotify auth URL error:', error);
+        res.status(500).json({ error: 'Failed to generate Spotify auth URL' });
+    }
+});
+app.get('/auth/spotify/callback', (req, res, next) => {
+    const { state, error } = req.query;
+    const storedState = req.session.spotifyState;
+    delete req.session.spotifyState;
+
+    if (error) {
+        console.error('Spotify OAuth callback error:', error);
+        return res.redirect(`${process.env.CLIENT_URL}/signin?error=spotify_auth_failed`);
+    }
+
+    if (state !== storedState) {
+        console.error('Spotify OAuth state mismatch:', { received: state, expected: storedState });
+        return res.redirect(`${process.env.CLIENT_URL}/signin?error=state_mismatch`);
+    }
+
+    next();
+}, SpotifyCallback);
+app.post('/auth/spotify/disconnect', isAuthenticated, SpotifyDisconnect);
 app.get('/auth/check', AuthCheck);
+app.post('/signout', async (req, res) => {
+    try {
+        if (req.isAuthenticated() && req.user) {
+            const user = await User.findById(req.user._id);
+            if (user) {
+                user.spotifyId = null;
+                user.spotifyAccessToken = null;
+                user.spotifyRefreshToken = null;
+                user.spotifyTokenExpires = null;
+                await user.save();
+                console.log('Signout: Cleared Spotify tokens for user', { userId: user._id.toString() });
+            }
+        }
+        req.logout((err) => {
+            if (err) {
+                console.error('Logout error during Passport logout:', err);
+                return res.status(500).json({ message: 'Failed to sign out (Passport logout error)' });
+            }
+            if (req.session.user) {
+                delete req.session.user;
+            }
+            if (req.session.spotifyState) {
+                delete req.session.spotifyState;
+            }
+            if (req.session.returnTo) {
+                delete req.session.returnTo;
+            }
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('Session destroy error:', err);
+                    return res.status(500).json({ message: 'Failed to destroy session' });
+                }
+                res.clearCookie('connect.sid', { path: '/' });
+                res.clearCookie('spotify_auth_state', { path: '/' });
+                res.status(200).json({ message: 'Signed out successfully' });
+            });
+        });
+    } catch (error) {
+        console.error('Signout error:', error);
+        res.status(500).json({ message: 'Failed to sign out', details: error.message });
+    }
+});
+
 app.get('/api/user', (req, res) => {
     if (req.isAuthenticated()) {
         const user = req.user;
@@ -113,7 +170,8 @@ app.get('/api/user', (req, res) => {
             user: {
                 id: user._id.toString(),
                 email: user.email,
-                name: user.firstName || user.name
+                name: user.firstName || user.name,
+                spotifyConnected: !!user.spotifyAccessToken
             }
         });
     } else if (req.session.user) {
@@ -123,42 +181,13 @@ app.get('/api/user', (req, res) => {
             user: {
                 id: sessionUser.id.toString(),
                 email: sessionUser.email,
-                name: sessionUser.name
+                name: sessionUser.name,
+                spotifyConnected: sessionUser.spotifyConnected || false
             }
         });
     }
     
     return res.status(200).json({ userId: null, user: null });
-});
-
-// Spotify authentication routes
-app.get('/login', (_req, res) => {
-    const scopes = ['user-read-private', 'user-read-email'];
-    res.redirect(spotifyApi.createAuthorizeURL(scopes));
-});
-
-app.get('/callback', async (req, res) => {
-    const { code } = req.query;
-    try {
-        const data = await spotifyApi.authorizationCodeGrant(code);
-        spotifyApi.setAccessToken(data.body['access_token']);
-        spotifyApi.setRefreshToken(data.body['refresh_token']);
-        res.redirect('/song-recommender');
-    } catch (error) {
-        console.error('Error in Spotify callback:', error);
-        res.redirect('/error');
-    }
-});
-
-//handle sign out 
-app.post('/signout', (req, res) => {
-    req.session.destroy(err => {
-        if (err) {
-            return res.status(500).json({ message: 'Sign-out failed' });
-        }
-        res.clearCookie('connect.sid', { path: '/', httpOnly: true, sameSite: 'lax', domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : 'localhost' });
-        res.status(200).json({ message: 'Signed out successfully' });
-    });
 });
 
 // Image processing routes
@@ -173,7 +202,7 @@ app.use('/api/songs', songRouter);
 
 // Error handling middleware
 app.use((err, _req, res, _next) => {
-    console.error(err.stack);
+    console.error('Server error:', err.stack);
     res.status(500).json({
         error: 'Something went wrong!',
         details: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -188,15 +217,13 @@ MongoDB(connectionURL)
     })
     .catch(err => {
         console.error('Database connection error:', err);
+        process.exit(1);
     });
 
 const gracefulShutdown = async () => {
     console.log('Received shutdown signal, starting graceful shutdown...');
     songRecommender.cleanup();
-    songRouter.cleanup(); // Add this line
-    if (global.spotifyRefreshInterval) {
-        clearInterval(global.spotifyRefreshInterval);
-    }
+    songRouter.cleanup();
     if (server) {
         await new Promise(resolve => server.close(resolve));
     }

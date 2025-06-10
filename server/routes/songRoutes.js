@@ -89,7 +89,7 @@ router.post('/save-song', upload.single('image'), async (req, res) => {
 router.delete('/saved/:userId/:songId', async (req, res) => {
     try {
         const { userId, songId } = req.params;
-        
+
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
@@ -118,7 +118,7 @@ router.delete('/saved/:userId/:songId', async (req, res) => {
 router.delete('/history/:userId/:songId', async (req, res) => {
     try {
         const { userId, songId } = req.params;
-        
+
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
@@ -146,7 +146,7 @@ router.delete('/history/:userId/:songId', async (req, res) => {
 router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
     try {
         const { userId, artistId } = req.params;
-        
+
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
@@ -173,10 +173,12 @@ router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
 
 router.get('/artist/:artistId', async (req, res) => {
     try {
-        await songRecommender.initialized;
         const { artistId } = req.params;
+        const userId = req.query.userId; 
+
+        await songRecommender.initialized;
         
-        const artistData = await songRecommender.getArtistInfo(artistId);
+        const artistData = await songRecommender.getArtistInfo(artistId, userId);
         
         if (!artistData) {
             return res.status(404).json({ error: 'Artist not found' });
@@ -192,6 +194,7 @@ router.get('/artist/:artistId', async (req, res) => {
 router.get('/preferences/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
@@ -331,14 +334,15 @@ router.post('/feedback', async (req, res) => {
 
 router.get('/search-artists', async (req, res) => {
     try {
+        const { q, userId } = req.query;
+
         await songRecommender.initialized;
-        const { q } = req.query;
 
         if (!q) {
             return res.status(400).json({ error: 'Search query is required' });
         }
 
-        const artists = await songRecommender.searchArtists(q);
+        const artists = await songRecommender.searchArtists(q, userId);
         res.json({ artists });
     } catch (error) {
         console.error('Error searching artists:', error);
@@ -361,6 +365,10 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         const preferences = req.body.preferences ? JSON.parse(req.body.preferences) : {};
         const userId = req.body.userId;
         const skipCount = parseInt(req.query.skip) || 0;
+
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ error: 'Valid user ID is required' });
+        }
 
         if (!req.app.locals.suggestedSongs) {
             req.app.locals.suggestedSongs = new Set();
@@ -397,13 +405,12 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         }
 
         const description = songRecommender.generateDescription(imageAnalysis);
-        
         preferences.previouslySuggested = Array.from(req.app.locals.suggestedSongs);
-
         const recommendations = await songRecommender.getSongRecommendation(
             imageAnalysis,
             skipCount,
-            preferences
+            preferences,
+            userId
         );
 
         if (!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) {
@@ -452,9 +459,10 @@ router.get('/languages', (_req, res) => {
     res.json({ languages });
 });
 
-router.get('/genres', async (_req, res) => {
+router.get('/genres', async (req, res) => {
     try {
-        const genres = await songRecommender.getAvailableGenres();
+        const userId = req.query.userId;
+        const genres = await songRecommender.getAvailableGenres(userId);
         res.json({ genres });
     } catch (error) {
         console.error('Error fetching genres:', error);

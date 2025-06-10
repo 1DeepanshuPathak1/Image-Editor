@@ -29,6 +29,11 @@ export const useSongHandling = (
     const OFFSET_INCREMENT = 15;
 
     const handleSuggestSong = async () => {
+        if (!userId) {
+            setError('User ID is required to suggest a song. Please try logging in again.');
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         setCurrentIndex(0);
@@ -39,6 +44,7 @@ export const useSongHandling = (
 
             const formData = new FormData();
             formData.append('image', blob, 'image.jpg');
+            formData.append('userId', userId);
 
             if (showAdvanced) {
                 const preferences = {
@@ -46,23 +52,29 @@ export const useSongHandling = (
                     mood,
                     popularity,
                     language,
-                    artist: selectedArtist ? selectedArtist.id : null
+                    artist: selectedArtist ? selectedArtist.id : null,
+                    likedSongs,
+                    dislikedSongs,
+                    likedArtists,
+                    dislikedArtists
                 };
                 formData.append('preferences', JSON.stringify(preferences));
             }
 
-            if (userId) {
-                formData.append('userId', userId);
+            // Log the formData contents
+            const formDataEntries = {};
+            for (let [key, value] of formData.entries()) {
+                formDataEntries[key] = value;
             }
 
-            // Update the URL to use the correct port
             const apiResponse = await fetch(`http://localhost:3000/api/songs/recommend-song?skip=${skipCount}`, {
                 method: 'POST',
                 body: formData,
+                credentials: 'include'
             });
 
             if (!apiResponse.ok) {
-                const errorText = await apiResponse.text(); // First get the raw response text
+                const errorText = await apiResponse.text();
                 let errorMessage;
                 try {
                     const errorData = JSON.parse(errorText);
@@ -73,12 +85,12 @@ export const useSongHandling = (
                 throw new Error(errorMessage);
             }
 
-            const responseText = await apiResponse.text(); // Get the raw response text
+            const responseText = await apiResponse.text();
             let data;
             try {
                 data = JSON.parse(responseText);
             } catch (e) {
-                console.error('Failed to parse response:', responseText);
+                console.error('handleSuggestSong: Failed to parse response:', responseText);
                 throw new Error('Invalid response from server');
             }
             

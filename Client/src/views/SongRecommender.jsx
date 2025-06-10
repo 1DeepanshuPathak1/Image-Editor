@@ -45,13 +45,15 @@ const SongRecommenderPage = () => {
 
                 const data = await response.json();
 
-                if (data.userId) {
-                    setUserId(data.userId);
+                if (data.user?.id) {
+                    setUserId(data.user.id);
                 } else {
-                    console.log('No user ID in response');
+                    console.error('fetchUserId: No user ID in response', data);
+                    setError('Failed to fetch user ID. Please try logging in again.');
                 }
             } catch (error) {
-                console.error('Failed to fetch user ID:', error);
+                console.error('fetchUserId: Failed to fetch user ID:', error);
+                setError('Failed to fetch user ID: ' + error.message);
             }
         };
 
@@ -82,9 +84,13 @@ const SongRecommenderPage = () => {
     useEffect(() => {
         const fetchUserPreferences = async () => {
             try {
-                if (!userId) return;
+                if (!userId) {
+                    return;
+                }
 
-                const response = await fetch(`http://localhost:3000/api/songs/preferences/${userId}`);
+                const response = await fetch(`http://localhost:3000/api/songs/preferences/${userId}`, {
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     throw new Error(`Failed to fetch preferences: ${response.status}`);
                 }

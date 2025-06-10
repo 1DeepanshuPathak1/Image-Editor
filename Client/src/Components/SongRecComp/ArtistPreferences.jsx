@@ -13,11 +13,11 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
     const fetchArtistImages = async () => {
       const allArtists = [...likedArtists, ...dislikedArtists];
       const uniqueArtists = Array.from(new Set(allArtists.map(a => a.artistId)));
-      
+
       for (const artistId of uniqueArtists) {
         if (!artistImages[artistId]) {
           try {
-            const response = await fetch(`http://localhost:3000/api/songs/artist/${artistId}`, {
+            const response = await fetch(`http://localhost:3000/api/songs/artist/${artistId}?userId=${userId}`, {
               method: 'GET',
               credentials: 'include',
             });
@@ -27,7 +27,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
               if (data.images && data.images.length > 0) {
                 setArtistImages(prev => ({
                   ...prev,
-                  [artistId]: data.images[0].url 
+                  [artistId]: data.images[0].url
                 }));
               }
             }
@@ -39,7 +39,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
     };
 
     fetchArtistImages();
-  }, [likedArtists, dislikedArtists]);
+  }, [likedArtists, dislikedArtists, userId]);
 
   const showAddArtist = () => {
     setIsSearching(true);
@@ -93,7 +93,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
         }
 
         const data = await response.json();
-        
+
         if (activeTab === 'liked') {
           onArtistRemove(artist.id, 'disliked');
         } else {
@@ -180,14 +180,14 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
               {selectedArtists.map(artist => (
                 <div key={artist.id} className="sr-selected-artist-chip">
                   {artist.images?.[2]?.url && (
-                    <img 
-                      src={artist.images[2].url} 
+                    <img
+                      src={artist.images[2].url}
                       alt={artist.name}
                       className="sr-selected-artist-image"
                     />
                   )}
                   <span>{artist.name}</span>
-                  <button 
+                  <button
                     className="sr-remove-selected"
                     onClick={() => handleRemoveSelected(artist)}
                   >
@@ -202,15 +202,15 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
               <ArtistSearch onSelect={handleArtistSelect} />
             </div>
             {selectedArtists.length > 0 ? (
-              <button 
-                className="sr-artist-search-add" 
+              <button
+                className="sr-artist-search-add"
                 onClick={handleAddArtists}
               >
                 <Check size={18} />
               </button>
             ) : (
-              <button 
-                className="sr-artist-search-close" 
+              <button
+                className="sr-artist-search-close"
                 onClick={() => setIsSearching(false)}
               >
                 <X size={18} />

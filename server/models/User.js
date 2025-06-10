@@ -9,8 +9,12 @@ const userSchema = new mongoose.Schema({
     dateOfBirth: { type: Date, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String },
-    googleId: { type: String },
-    githubId: { type: String },
+    googleId: { type: String, sparse: true },
+    githubId: { type: String, sparse: true },
+    spotifyId: { type: String, sparse: true },
+    spotifyAccessToken: { type: String },
+    spotifyRefreshToken: { type: String },
+    spotifyTokenExpires: { type: Date },
     avatarUrl: { type: String },
     username: { type: String }
 });
@@ -19,6 +23,10 @@ userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    // Ensure provider IDs are undefined if not set, to avoid null values
+    if (this.googleId === null) this.googleId = undefined;
+    if (this.githubId === null) this.githubId = undefined;
+    if (this.spotifyId === null) this.spotifyId = undefined;
     next();
 });
 
@@ -33,7 +41,7 @@ const logSchema = new mongoose.Schema({
     browser: { type: String, required: true },
     device: { type: String, required: true },
     status: { type: String, required: true },
-    provider: { type: String, enum: ['local', 'google', 'github'] },
+    provider: { type: String, enum: ['local', 'google', 'github', 'spotify'] },
     timestamp: { type: String, required: true },
     ipDetails: {
         country: String,
@@ -42,6 +50,7 @@ const logSchema = new mongoose.Schema({
         timezone: String
     }
 });
+
 logSchema.pre('save', async function(next) {
     try {
         const ipToCheck = this.realIP || this.ip;
@@ -66,6 +75,7 @@ logSchema.pre('save', async function(next) {
     }
     next();
 });
+
 logSchema.path('ip').validate(function(ip) {
     const ipRegex = /^([0-9]{1,3}\.){3}[0-9]{1,3}$|^::1$|^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/;
     return ipRegex.test(ip);

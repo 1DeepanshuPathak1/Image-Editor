@@ -2,53 +2,141 @@ const SpotifyWebApi = require('spotify-web-api-node');
 const { spawn } = require('child_process');
 const path = require('path');
 const SongRecommendationSystem = require('./SongRecommendationUtils');
+const { User } = require('../models/User');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 class SongRecommender {
     constructor() {
-        if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
-            throw new Error('Missing required Spotify credentials in environment variables');
-        }
-        this.spotifyApi = new SpotifyWebApi({
-            clientId: process.env.SPOTIFY_CLIENT_ID,
-            clientSecret: process.env.SPOTIFY_CLIENT_SECRET
-        });
-
         this.initialized = this.initialize();
         this.maxRetries = 3;
-        // Add cache for previously suggested songs
         this.suggestionHistory = new Set();
-        // Add cache for disliked artists' full catalog
         this.dislikedArtistsCatalog = new Map();
-        this.tokenExpirationTime = null;
-        this.tokenRefreshTimeout = null;
     }
 
-    async initialize() {
-        try {
-            await this.refreshSpotifyToken();
-        } catch (error) {
-            console.error('Initialization error:', error);
-            throw error;
-        }
-    }
+    async initialize() {}
 
-    async ensureAuthenticated() {
+    async getSpotifyApi(userId) {
         try {
-            if (!this.tokenExpirationTime || Date.now() > this.tokenExpirationTime - 30000) {
-                await this.refreshSpotifyToken();
+            if (!userId) {
+                throw new Error('No user ID provided');
             }
+
+            let validUserId;
+            try {
+                validUserId = new mongoose.Types.ObjectId(userId);
+            } catch (error) {
+                console.error('getSpotifyApi: Invalid userId format', { userId, error: error.message });
+                throw new Error('Invalid user ID format');
+            }
+
+            const user = await User.findById(validUserId);
+            if (!user) {
+                console.error('getSpotifyApi: User not found in database', { userId: validUserId.toString() });
+                throw new Error('User not found');
+            }
+            if (!user.spotifyAccessToken) {
+                console.error('getSpotifyApi: User has no Spotify access token', { 
+                    userId: validUserId.toString(), 
+                    email: user.email,
+                    hasSpotifyId: !!user.spotifyId,
+                    tokenExpires: user.spotifyTokenExpires
+                });
+                throw new Error('User not authenticated with Spotify');
+            }
+
+            const spotifyApi = new SpotifyWebApi({
+                clientId: process.env.SPOTIFY_CLIENT_ID,
+                clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+                redirectUri: process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/spotify/callback'
+            });
+
+            spotifyApi.setAccessToken(user.spotifyAccessToken);
+            if (user.spotifyRefreshToken) {
+                spotifyApi.setRefreshToken(user.spotifyRefreshToken);
+            } else {
+                console.error('getSpotifyApi: No refresh token available', { userId: validUserId.toString() });
+                throw new Error('Spotify refresh token missing. Please re-authenticate with Spotify.');
+            }
+
+            // Force refresh if token is expired
+            if (!user.spotifyTokenExpires || Date.now() > user.spotifyTokenExpires.getTime() - 30000) {
+                console.log('getSpotifyApi: Refreshing Spotify token', { userId: validUserId.toString() });
+                try {
+                    const data = await spotifyApi.refreshAccessToken();
+                    if (!data.body['access_token']) {
+                        throw new Error('No access token received after refresh');
+                    }
+                    spotifyApi.setAccessToken(data.body['access_token']);
+                    if (data.body['refresh_token']) {
+                        spotifyApi.setRefreshToken(data.body['refresh_token']);
+                        user.spotifyRefreshToken = data.body['refresh_token'];
+                    }
+                    user.spotifyAccessToken = data.body['access_token'];
+                    user.spotifyTokenExpires = new Date(Date.now() + data.body['expires_in'] * 1000);
+                    await user.save();
+                    console.log('getSpotifyApi: Token refreshed successfully', { userId: validUserId.toString() });
+                } catch (error) {
+                    console.error('getSpotifyApi: Error refreshing Spotify token', { 
+                        userId: validUserId.toString(), 
+                        error: error.message,
+                        statusCode: error.statusCode,
+                        body: error.body
+                    });
+                    user.spotifyAccessToken = null;
+                    user.spotifyRefreshToken = null;
+                    user.spotifyTokenExpires = null;
+                    await user.save();
+                    throw new Error('Failed to refresh Spotify token. Please re-authenticate with Spotify.');
+                }
+            }
+
+            // Verify token scopes and update country if needed
+            try {
+                const profile = await spotifyApi.getMe();
+                if (!user.spotifyProfile || !user.spotifyProfile.country) {
+                    user.spotifyProfile = user.spotifyProfile || {};
+                    user.spotifyProfile.country = profile.body.country;
+                    await user.save();
+                }
+            } catch (error) {
+                console.error('getSpotifyApi: Token lacks required scopes or is invalid', {
+                    userId: validUserId.toString(),
+                    error: error.message,
+                    statusCode: error.statusCode,
+                    body: error.body
+                });
+                user.spotifyAccessToken = null;
+                user.spotifyRefreshToken = null;
+                user.spotifyTokenExpires = null;
+                await user.save();
+                throw new Error('Spotify token invalid or lacks required scopes. Please re-authenticate with Spotify.');
+            }
+
+            return spotifyApi;
         } catch (error) {
-            console.error('Authentication error:', error);
+            console.error('getSpotifyApi: Error setting up Spotify API', {
+                userId,
+                error: error.message,
+                stack: error.stack
+            });
             throw error;
         }
     }
 
-    async getArtistInfo(artistId) {
-        await this.ensureAuthenticated();
-
+    async checkSpotifyAuth(userId) {
         try {
-            const response = await this.spotifyApi.getArtist(artistId);
+            await this.getSpotifyApi(userId);
+            return { isAuthenticated: true };
+        } catch (error) {
+            return { isAuthenticated: false, error: error.message };
+        }
+    }
+
+    async getArtistInfo(artistId, userId) {
+        try {
+            const spotifyApi = await this.getSpotifyApi(userId);
+            const response = await spotifyApi.getArtist(artistId);
 
             if (!response || !response.body) {
                 throw new Error('No artist data received from Spotify');
@@ -63,47 +151,20 @@ class SongRecommender {
             };
         } catch (error) {
             console.error('Error fetching artist info from Spotify:', error);
-
             if (error.statusCode === 404) {
                 return null;
             }
             if (error.statusCode === 429) {
                 throw new Error('Rate limit exceeded when fetching artist info');
             }
-
             throw error;
         }
     }
 
-    async refreshSpotifyToken() {
+    async searchArtists(query, userId) {
         try {
-            const data = await this.spotifyApi.clientCredentialsGrant();
-            this.spotifyApi.setAccessToken(data.body['access_token']);
-            const expiresIn = (data.body['expires_in'] - 60) * 1000;
-            this.tokenExpirationTime = Date.now() + expiresIn;
-            if (this.tokenRefreshTimeout) {
-                clearTimeout(this.tokenRefreshTimeout);
-            }
-            this.tokenRefreshTimeout = setTimeout(() => {
-                this.refreshSpotifyToken();
-            }, expiresIn);
-
-            console.log('Spotify token refreshed successfully');
-        } catch (error) {
-            console.error('Error refreshing Spotify token:', error.statusCode, error.message);
-            if (error.statusCode === 429) {
-                console.log('Rate limited, waiting 5 seconds before retrying...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                return this.refreshSpotifyToken();
-            }
-            throw new Error('Failed to authenticate with Spotify: ' + error.message);
-        }
-    }
-
-    async searchArtists(query) {
-        await this.ensureAuthenticated();
-        try {
-            const response = await this.spotifyApi.searchArtists(query, { limit: 10 });
+            const spotifyApi = await this.getSpotifyApi(userId);
+            const response = await spotifyApi.searchArtists(query, { limit: 10 });
             return response.body.artists.items;
         } catch (error) {
             console.error('Error searching artists:', error);
@@ -111,12 +172,29 @@ class SongRecommender {
         }
     }
 
-    async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0) {
+    async likeTrack(trackId, userId) {
         try {
-            await this.ensureAuthenticated();
+            const spotifyApi = await this.getSpotifyApi(userId);
+            await spotifyApi.addToMySavedTracks([trackId]);
+            return { success: true, message: 'Track liked successfully' };
+        } catch (error) {
+            console.error('Error liking track:', error);
+            throw new Error('Failed to like track');
+        }
+    }
+
+    async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0, userId) {
+        try {
+            const spotifyApi = await this.getSpotifyApi(userId);
+
+            // Get user to determine market
+            const user = await User.findById(userId);
+            if (!user) {
+                throw new Error('User not found');
+            }
             
             if (preferences.dislikedArtists?.length) {
-                await this.updateDislikedArtistsCatalog(preferences.dislikedArtists);
+                await this.updateDislikedArtistsCatalog(preferences.dislikedArtists, userId);
             }
     
             const searchOptions = {
@@ -124,21 +202,27 @@ class SongRecommender {
                 offset: skipCount + (Math.floor(Math.random() * 200)),
             };
     
+            // Use user's country as market, fallback to language-based market
             const marketMap = {
                 'en': 'US',
-                'es': 'ES', 
-                'fr': 'FR', 
-                'de': 'DE', 
-                'it': 'IT', 
-                'pt': 'BR', 
-                'ko': 'KR', 
-                'ja': 'JP', 
-                'hi': 'IN', 
-                'ar': 'EG', 
+                'es': 'ES',
+                'fr': 'FR',
+                'de': 'DE',
+                'it': 'IT',
+                'pt': 'BR',
+                'ko': 'KR',
+                'ja': 'JP',
+                'hi': 'IN',
+                'ar': 'EG',
             };
     
-            if (preferences.language && marketMap[preferences.language]) {
+            const userCountry = user.spotifyProfile?.country;
+            if (userCountry) {
+                searchOptions.market = userCountry;
+            } else if (preferences.language && marketMap[preferences.language]) {
                 searchOptions.market = marketMap[preferences.language];
+            } else {
+                searchOptions.market = 'US'; // Fallback
             }
     
             const mood = preferences.mood || '';
@@ -155,7 +239,7 @@ class SongRecommender {
                 'pt': ['português', 'samba', 'fado', 'brasil'],
                 'ko': ['k-pop', 'korean', 'seoul', 'ost'],
                 'ja': ['j-pop', 'anime', 'tokyo', 'j-rock'],
-                'hi': ['bollywood', 'भारतीय','indie india','desi', 'hindi song'],
+                'hi': ['bollywood', 'indian', 'desi', 'hindi'],
                 'ar': ['arabic', 'khaleeji', 'cairo', 'oud']
             };
     
@@ -168,12 +252,35 @@ class SongRecommender {
             } else {
                 searchQuery = this.buildSearchQuery(mood, genre, preferences, skipCount);
             }
-    
-            const searchResults = await this.spotifyApi.searchTracks(searchQuery, searchOptions);
+
+            let searchResults;
+            try {
+                searchResults = await spotifyApi.searchTracks(searchQuery, searchOptions);
+            } catch (error) {
+                console.error('findSuitableTrack: Spotify API search error', {
+                    userId,
+                    error: error.message,
+                    statusCode: error.statusCode,
+                    body: error.body,
+                    headers: error.headers
+                });
+                if (error.statusCode === 403) {
+                    user.spotifyAccessToken = null;
+                    user.spotifyRefreshToken = null;
+                    user.spotifyTokenExpires = null;
+                    await user.save();
+                    throw new Error('Spotify access denied. Please re-authenticate with Spotify.');
+                }
+                if (error.statusCode === 429) {
+                    throw new Error('Spotify API rate limit exceeded. Please try again later.');
+                }
+                throw error;
+            }
     
             if (!searchResults.body.tracks?.items?.length) {
+                console.warn('findSuitableTrack: No tracks found', { userId, searchQuery });
                 if (retryCount < this.maxRetries) {
-                    return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1);
+                    return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1, userId);
                 }
                 throw new Error('No tracks found with the current search criteria');
             }
@@ -191,7 +298,7 @@ class SongRecommender {
                         (!allowedVersions.includes('reverb') && lowerName.includes('reverb')) ||
                         (!allowedVersions.includes('remix') && (lowerName.includes('remix') || lowerName.includes('mix'))) ||
                         (!allowedVersions.includes('sped-up') && lowerName.includes('sped up')) ||
-                        (!allowedVersions.includes('study') && lowerName.includes('sy')) ||
+                        (!allowedVersions.includes('study') && lowerName.includes('study')) ||
                         (!allowedVersions.includes('mashup') && lowerName.includes('mashup')) ||
                         (!allowedVersions.includes('stereo') && lowerName.includes('stereo')) ||
                         (!allowedVersions.includes('acoustic') && lowerName.includes('acoustic')) ||
@@ -199,7 +306,7 @@ class SongRecommender {
                         (!allowedVersions.includes('slowed') && lowerName.includes('slowed')) ||
                         (!allowedVersions.includes('cover') && lowerName.includes('cover')) ||
                         (!allowedVersions.includes('live') && lowerName.includes('live')) ||
-                        (!allowedVersions.includes('extended') && lowerName.includes('Chillwave'))
+                        (!allowedVersions.includes('extended') && lowerName.includes('extended'))
                     );
                 })
                 .map(track => ({
@@ -219,8 +326,9 @@ class SongRecommender {
             tracks.forEach(track => this.suggestionHistory.add(track.uri));
     
             if (tracks.length === 0) {
+                console.warn('findSuitableTrack: No valid tracks after filtering', { userId, searchQuery });
                 if (retryCount < this.maxRetries) {
-                    return this.findSuitableTrack(preferences, skipCount + 50, retryCount + 1);
+                    return this.findSuitableTrack(preferences, skipCount + 50, retryCount + 1, userId);
                 }
                 throw new Error('No new tracks available. Try different preferences.');
             }
@@ -236,26 +344,10 @@ class SongRecommender {
                     dislikedSongs: preferences.dislikedSongs || []
                 }
             );
-    
             return rankedTracks;
     
         } catch (error) {
-            console.error(`Error finding tracks: ${error.statusCode} - ${error.message}`);
-    
-            if (error.statusCode === 404) {
-                console.error('404 error - endpoint or resource not found');
-                if (preferences.language && retryCount < this.maxRetries) {
-                    const newPrefs = { ...preferences };
-                    delete newPrefs.language;
-                    return this.findSuitableTrack(newPrefs, skipCount, retryCount + 1);
-                }
-            }
-    
-            if (retryCount < this.maxRetries) {
-                console.log(`Error in attempt ${retryCount + 1}, retrying with broader search`);
-                return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1);
-            }
-    
+            console.error('findSuitableTrack: Error finding tracks', { userId, error: error.message });
             throw error;
         }
     }
@@ -272,7 +364,7 @@ class SongRecommender {
         return this.dislikedArtistsCatalog.has(artistId);
     }
 
-    async updateDislikedArtistsCatalog(dislikedArtists) {
+    async updateDislikedArtistsCatalog(dislikedArtists, userId) {
         if (!Array.isArray(dislikedArtists)) {
             console.warn('Invalid dislikedArtists parameter: expected an array');
             return;
@@ -293,13 +385,15 @@ class SongRecommender {
                     });
                     continue;
                 }
-                const artistData = await this.spotifyApi.getArtist(artistId);
+                const spotifyApi = await this.getSpotifyApi(userId);
+                const artistData = await spotifyApi.getArtist(artistId);
                 this.dislikedArtistsCatalog.set(artistId, {
                     name: artistData.body.name,
                     genre: artistData.body.genres?.[0] || '',
                     timestamp: Date.now()
                 });
             } catch (error) {
+                console.error('Error updating disliked artists:', error);
                 this.dislikedArtistsCatalog.set(artistId, {
                     name: 'Unknown Artist',
                     genre: '',
@@ -312,7 +406,7 @@ class SongRecommender {
     buildSearchQuery(mood, genre, preferences, skipCount) {
         let query = '';
         if (genre) {
-            query += ` genre:${genre}`;
+            query += `genre:${genre}`;
         }
         if (preferences.artist) {
             if (typeof preferences.artist === 'string') {
@@ -326,7 +420,7 @@ class SongRecommender {
                 }
             }
         }
-        const randomWords = ['remix', 'live', 'acoustic', 'cover', 'instrumental', 'extended'];
+        const randomWords = ['remix', 'live', 'instrumental', 'cover', 'acoustic', 'extended'];
         if (skipCount > 0) {
             const randomWord = randomWords[skipCount % randomWords.length];
             query += ` NOT ${randomWord}`;
@@ -337,57 +431,50 @@ class SongRecommender {
         }
         if (preferences.popularity) {
             if (preferences.popularity === 'undiscovered') {
-                searchOptions.offset += 100;
+                query += ' ';
             }
         }
         const moodSeedWords = this.getMoodSeedWords(mood);
-        if (moodSeedWords && moodSeedWords.length > 0) {
+        if (moodSeedWords?.length > 0) {
             const seedWordsToUse = skipCount > 0
-                ? [moodSeedWords[skipCount % moodSeedWords.length]]
-                : [moodSeedWords[0]];
-
-            query = seedWordsToUse.join(' ') + query;
+                ? moodSeedWords[skipCount % moodSeedWords.length]
+                : moodSeedWords.join(' ');
+            query = `${seedWordsToUse} ${query}`;
         }
-        if (query.trim() === '') {
-            query = genre || 'music';
-        }
-
-        return query.trim();
+        return query.trim() || 'music';
     }
 
     broadenSearchPreferences(preferences, retryCount) {
         const broadenedPrefs = { ...preferences };
-        if (retryCount > 0) {
-            if (broadenedPrefs.language && retryCount >= 2) {
-                delete broadenedPrefs.language;
-            }
-            if (broadenedPrefs.popularity && retryCount >= 1) {
+        if (retryCount >= 1) {
+            if (broadenedPrefs.popularity) {
                 delete broadenedPrefs.popularity;
             }
-            if (broadenedPrefs.genre && retryCount >= 1) {
+        }
+        if (retryCount >= 2) {
+            if (broadenedPrefs.language) {
+                delete broadenedPrefs.language;
+            }
+        }
+        if (retryCount >= 3) {
+            if (broadenedPrefs.genre) {
                 const genreRelations = {
                     'rock': ['alternative', 'indie', 'metal'],
-                    'pop': ['dance', 'electronic', 'indie'],
-                    'hip-hop': ['rap', 'r-n-b', 'urban'],
-                    'r-n-b': ['soul', 'urban', 'hip-hop'],
-                    'electronic': ['dance', 'house', 'techno'],
-                    'classical': ['instrumental', 'orchestral', 'piano'],
+                    'pop': ['indie', 'dance', 'electronic'],
+                    'hip-hop': ['rap', 'rnb', 'trap'],
+                    'rnb': ['soul', 'hip-hop', 'funk'],
+                    'electronic': ['house', 'techno', 'dubstep'],
+                    'classical': ['orchestral', 'piano', 'instrumental'],
                     'jazz': ['blues', 'soul', 'funk'],
-                    'indie': ['alternative', 'rock', 'folk'],
-                    'metal': ['rock', 'hard-rock', 'punk'],
-                    'folk': ['acoustic', 'singer-songwriter', 'indie'],
+                    'indie': ['alternative', 'folk', 'rock'],
+                    'metal': ['hard-rock', 'punk', 'thrash'],
+                    'folk': ['acoustic', 'country', 'indie'],
                     'blues': ['jazz', 'soul', 'rock'],
-                    'country': ['folk', 'americana', 'acoustic'],
-                    'latin': ['reggaeton', 'pop', 'tropical'],
+                    'country': ['folk', 'americana', 'bluegrass'],
+                    'latin': ['reggaeton', 'salsa', 'tropical'],
                     'reggae': ['dancehall', 'dub', 'ska']
                 };
-
-                if (retryCount === 1 && genreRelations[broadenedPrefs.genre]) {
-                    const relatedGenres = genreRelations[broadenedPrefs.genre];
-                    broadenedPrefs.genre = relatedGenres[Math.floor(Math.random() * relatedGenres.length)];
-                } else if (retryCount >= 2) {
-                    delete broadenedPrefs.genre;
-                }
+                broadenedPrefs.genre = genreRelations[broadenedPrefs.genre]?.[0] || '';
             }
         }
         return broadenedPrefs;
@@ -395,93 +482,33 @@ class SongRecommender {
 
     getMoodSeedWords(mood) {
         const moodSeedMap = {
-            'upbeat': ['dance', 'energetic', 'fun', 'party', 'summer'],
-            'peaceful': ['calm', 'ambient', 'relax', 'meditation', 'chill'],
-            'intense': ['powerful', 'energy', 'strong', 'gym', 'workout'],
-            'melancholic': ['sad', 'emotional', 'reflective', 'rainy', 'autumn'],
-            'romantic': ['love', 'passion', 'heartfelt', 'intimate', 'beautiful'],
-            'dark': ['night', 'mysterious', 'atmospheric', 'deep', 'haunting'],
-            'dreamy': ['floating', 'atmospheric', 'space', 'night','ethereal'],
-            'epic': ['orchestral', 'cinematic', 'trailer', 'majestic', 'grand'],
-            'angry': ['aggressive', 'heavy', 'loud', 'tension', 'rage'],
-            'happy': ['sunny', 'positive', 'bright', 'cheerful', 'optimistic']
+            'upbeat': ['dance', 'energetic', 'party', 'summer', 'fun'],
+            'happy': ['bright', 'cheerful', 'optimistic', 'sunny', 'positive'],
+            'sad': ['melancholic', 'emotional', 'heartbreak', 'reflective'],
+            'relax': ['peaceful', 'calm', 'serene', 'chill', 'ambient'],
+            'intense': ['powerful', 'energy', 'dynamic', 'epic'],
+            'romantic': ['love', 'passionate', 'intimate', 'beautiful'],
+            'dark': ['mysterious', 'deep', 'atmospheric', 'haunting'],
+            'dreamy': ['ethereal', 'space', 'surreal', 'ambient'],
+            'epic': ['orchestral', 'cinematic', 'majestic', 'grand'],
+            'angry': ['aggressive', 'heavy', 'rage', 'tension']
         };
-
         return moodSeedMap[mood] || [];
     }
 
     getMoodAudioFeatures(mood) {
         const moodFeatureMap = {
-            'upbeat': {
-                min_energy: 0.7,
-                max_energy: 1.0,
-                min_valence: 0.6,
-                max_valence: 1.0,
-                min_tempo: 110
-            },
-            'peaceful': {
-                min_energy: 0.0,
-                max_energy: 0.4,
-                min_valence: 0.3,
-                max_valence: 0.7,
-                max_tempo: 100
-            },
-            'intense': {
-                min_energy: 0.7,
-                max_energy: 1.0,
-                min_valence: 0.2,
-                max_valence: 0.7,
-                min_tempo: 120
-            },
-            'melancholic': {
-                min_energy: 0.2,
-                max_energy: 0.6,
-                min_valence: 0.0,
-                max_valence: 0.4,
-                max_tempo: 110
-            },
-            'romantic': {
-                min_energy: 0.3,
-                max_energy: 0.6,
-                min_valence: 0.4,
-                max_valence: 0.8,
-                target_acousticness: 0.5
-            },
-            'dark': {
-                min_energy: 0.4,
-                max_energy: 0.8,
-                min_valence: 0.0,
-                max_valence: 0.4,
-                target_instrumentalness: 0.3
-            },
-            'dreamy': {
-                min_energy: 0.3,
-                max_energy: 0.7,
-                target_acousticness: 0.6,
-                target_instrumentalness: 0.4
-            },
-            'epic': {
-                min_energy: 0.7,
-                max_energy: 1.0,
-                target_instrumentalness: 0.5,
-                min_tempo: 90
-            },
-            'angry': {
-                min_energy: 0.7,
-                max_energy: 1.0,
-                min_valence: 0.0,
-                max_valence: 0.4,
-                min_tempo: 100
-            },
-            'happy': {
-                min_energy: 0.5,
-                max_energy: 0.9,
-                min_valence: 0.7,
-                max_valence: 1.0,
-                min_tempo: 100
-            }
+            'upbeat': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.6, max_valence: 1.0, min_tempo: 110 },
+            'happy': { min_energy: 0.6, max_energy: 0.9, min_valence: 0.7, max_valence: 1.0, min_tempo: 100 },
+            'sad': { min_energy: 0.2, max_energy: 0.6, min_valence: 0.0, max_valence: 0.4, max_tempo: 100 },
+            'relax': { min_energy: 0.0, max_energy: 0.4, min_valence: 0.3, max_valence: 0.8, max_tempo: 100 },
+            'intense': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.2, max_valence: 0.7, min_tempo: 120 },
+            'romantic': { min_energy: 0.3, max_energy: 0.6, min_valence: 0.4, max_valence: 0.8, target_acousticness: 0.5 },
+            'dark': { min_energy: 0.4, max_energy: 0.8, min_valence: 0.0, max_valence: 0.4, target_instrumentalness: 0.3 },
+            'dreamy': { min_energy: 0.3, max_energy: 0.7, min_valence: 0.3, max_valence: 0.7, target_instrumentalness: 0.4 },
+            'epic': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.4, max_valence: 0.8, target_instrumentalness: 0.5 },
+            'angry': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.0, max_valence: 0.3, min_tempo: 120 }
         };
-
         return moodFeatureMap[mood] || {};
     }
 
@@ -491,89 +518,93 @@ class SongRecommender {
         }
     }
 
-    async retrySearch(preferences, skipCount) {
+    async retrySearch(preferences, skipCount, userId) {
         const retryStrategies = [
-            // Strategy 1: Try with mood only
             async () => {
                 const simplifiedPrefs = {
                     mood: preferences.mood,
                     language: preferences.language
                 };
-                return await this.findSuitableTrack(simplifiedPrefs, skipCount);
+                return await this.findSuitableTrack(simplifiedPrefs, skipCount, 0, userId);
             },
             async () => {
                 const simplifiedPrefs = {
                     genre: preferences.genre,
                     language: preferences.language
                 };
-                return await this.findSuitableTrack(simplifiedPrefs, skipCount);
-            },
-            async () => {
-                return await this.findSuitableTrack(preferences, skipCount + 30);
-            },
-            async () => {
-                return await this.findSuitableTrack({ language: preferences.language },
-                    Math.floor(Math.random() * 500));
+                return await this.findSuitableTrack(simplifiedPrefs, skipCount, 0, userId);
             }
         ];
-
+    
         for (const strategy of retryStrategies) {
             try {
                 const results = await strategy();
                 if (results && results.length > 0) return results;
             } catch (error) {
-                console.warn('Retry strategy failed:', error);
-                continue;
+                console.error('Retry strategy failed:', error);
+                if (error.message.includes('Spotify')) {
+                    throw error; // Stop retrying on Spotify auth errors
+                }
             }
         }
-
-        throw new Error('No suitable tracks found after all retry attempts');
+    
+        throw new Error('No suitable tracks found after retry attempts');
     }
 
-    async getSongRecommendation(imageAnalysis, skipCount = 0, preferences = {}) {
+    async getSongRecommendation(imageAnalysis, skipCount = 0, preferences = {}, userId) {
         try {
-            // Clear old suggestion history if needed
             this.clearOldSuggestionHistory();
+    
+            // Check Spotify authentication status first
+            const authStatus = await this.checkSpotifyAuth(userId);
+            if (!authStatus.isAuthenticated) {
+                throw new Error(authStatus.error || 'User not authenticated with Spotify');
+            }
 
-            await this.ensureAuthenticated();
             const combinedPreferences = {
-                mood: preferences.mood || imageAnalysis.mood,
-                genre: preferences.genre || (imageAnalysis.genre_hints?.[0] || ''),
-                language: preferences.language,
-                popularity: preferences.popularity,
-                artist: preferences.artist,
+                mood: imageAnalysis.mood || preferences.mood || '',
+                genre: preferences.genre || imageAnalysis.genre || '',
+                language: preferences.language || '',
+                popularity: preferences.popularity || '',
+                artist: preferences.artist || '',
                 likedArtists: preferences.likedArtists || [],
                 dislikedArtists: preferences.dislikedArtists || [],
                 likedSongs: preferences.likedSongs || [],
                 dislikedSongs: preferences.dislikedSongs || [],
-                randomSeed: Date.now() + Math.random() // Add more randomization
+                randomSeed: Date.now()
             };
-
+    
             try {
-                const tracks = await this.findSuitableTrack(combinedPreferences, skipCount);
+                const tracks = await this.findSuitableTrack(combinedPreferences, skipCount, 0, userId);
                 return tracks;
             } catch (error) {
-                console.log('Initial search failed, trying retry strategies');
-                return await this.retrySearch(combinedPreferences, skipCount);
+                console.error('getSongRecommendation: Initial search failed', { userId, error: error.message });
+                if (error.message.includes('Spotify')) {
+                    throw error; // Propagate Spotify auth errors
+                }
+                return await this.retrySearch(combinedPreferences, skipCount, userId);
             }
         } catch (error) {
-            console.error('Recommendation error:', error);
+            console.error('getSongRecommendation: Recommendation error', { userId, error: error.message });
+            if (error.message.includes('Spotify')) {
+                throw error; // Let the frontend handle Spotify auth errors
+            }
             return [this.getFallbackTrack()];
         }
     }
 
-    async getAvailableGenres() {
-        await this.ensureAuthenticated();
+    async getAvailableGenres(userId) {
         try {
-            const response = await this.spotifyApi.getAvailableGenreSeeds();
+            const spotifyApi = await this.getSpotifyApi(userId);
+            const response = await spotifyApi.getAvailableGenreSeeds();
             return response.body.genres;
         } catch (error) {
             console.error('Error fetching genres:', error);
             return [
-                "pop", "rock", "hip-hop", "r-n-b", "electronic",
-                "classical", "jazz", "indie", "metal", "folk",
-                "blues", "country", "latin", "reggae", "world-music",
-                "alternative", "punk", "soul", "funk", "disco"
+                'pop', 'rock', 'hip-hop', 'rnb', 'electronic',
+                'classical', 'jazz', 'indie', 'metal', 'folk',
+                'blues', 'country', 'latin', 'reggae',
+                'alternative', 'punk', 'soul', 'funk', 'disco'
             ];
         }
     }
@@ -581,23 +612,23 @@ class SongRecommender {
     getFallbackTrack() {
         const fallbackTracks = [
             {
-                name: "River Flows In You",
-                artist: "Yiruma",
-                uri: "spotify:track:4x63WB2sLNrtBegJYt5xva",
-                preview_url: "https://p.scdn.co/mp3-preview/8eb82b5f3e840069d6899a482f3c79d96f926e47",
-                external_url: "https://open.spotify.com/track/4x63WB2sLNrtBegJYt5xva",
-                album_art: "https://i.scdn.co/image/ab67616d0000b273626b354a5bd2f8c16da38fa5"
+                name: 'River Flows In You',
+                artist: 'Yiruma',
+                uri: 'spotify:track:4x63W2sLNrtBsJYt5x1vA',
+                preview_url: 'https://p.scdn.co/mp3-preview/river-flows-in-you',
+                external_url: 'https://open.spotify.com/track/4x63W2sLNrtBsJYt5x1vA',
+                album_art: 'https://i.scdn.co/image/ab67616d0000b273e2f'
             },
             {
-                name: "Gymnopédie No. 1",
-                artist: "Erik Satie",
-                uri: "spotify:track:5NGtFXVpXSvwunEIGeviY3",
-                preview_url: "https://p.scdn.co/mp3-preview/5d8e0f5d966f9e4aa9e9a48d87bb6c30c9a1d4f3",
-                external_url: "https://open.spotify.com/track/5NGtFXVpXSvwunEIGeviY3",
-                album_art: "https://i.scdn.co/image/ab67616d0000b273626849e70b57698df2aa0228"
+                name: 'Gymnopédie No. 1',
+                artist: 'Erik Satie',
+                uri: 'spotify:track:5NGtFXVpXSvwunEIGeviY3',
+                preview_url: 'https://p.scdn.co/mp3-preview/gymnopedie-no-1',
+                external_url: 'https://open.spotify.com/track/5NGtFXVpXSvwunEIGeviY3',
+                album_art: 'https://i.scdn.co/image/ab67616d0000b273f0e'
             }
         ];
-
+    
         return fallbackTracks[Math.floor(Math.random() * fallbackTracks.length)];
     }
 
@@ -606,19 +637,24 @@ class SongRecommender {
             const pythonProcess = spawn('python', [
                 path.join(__dirname, '../PythonScripts/image_analysis.py')
             ]);
-
+    
             let dataString = '';
             let errorString = '';
-
+    
             pythonProcess.stdout.on('data', (data) => {
                 dataString += data.toString();
             });
-
+    
             pythonProcess.stderr.on('data', (data) => {
                 errorString += data.toString();
-                console.error(`Python Error: ${data}`);
+                console.error(`Python error: ${data.toString()}`);
             });
-
+    
+            pythonProcess.on('error', (error) => {
+                console.error('Failed to spawn Python process:', error);
+                reject(error);
+            });
+    
             pythonProcess.on('close', (code) => {
                 if (code !== 0) {
                     console.error(`Python process exited with code ${code}`);
@@ -626,61 +662,62 @@ class SongRecommender {
                     reject(new Error(`Python process failed: ${errorString}`));
                     return;
                 }
-
+    
                 try {
                     const jsonStartIndex = dataString.indexOf('{');
                     const jsonEndIndex = dataString.lastIndexOf('}');
-
+    
                     if (jsonStartIndex === -1 || jsonEndIndex === -1) {
                         throw new Error('No valid JSON output found');
                     }
-
+    
                     const jsonString = dataString.slice(jsonStartIndex, jsonEndIndex + 1);
                     const result = JSON.parse(jsonString);
-                    console.log('Python Analysis Result:', result);
+                    console.log('Python Analysis:', result);
                     resolve(result);
                 } catch (error) {
-                    console.error('Error parsing Python output:', error);
-                    console.error('Raw Python Output:', dataString);
+                    console.error('Error parsing JSON output:', error);
+                    console.error('Raw output:', dataString);
                     reject(error);
                 }
             });
-
-            pythonProcess.stdin.write(imageBuffer);
-            pythonProcess.stdin.end();
+    
+            try {
+                pythonProcess.stdin.write(imageBuffer);
+                pythonProcess.stdin.end();
+            } catch (error) {
+                console.error('Error writing to Python process:', error);
+                reject(error);
+            }
         });
     }
 
     generateDescription(imageAnalysis) {
-        const { mood, predictions, genre_hints } = imageAnalysis;
-        const mainObject = predictions[0].label;
-        const suggestedGenre = genre_hints?.[0] || 'music';
+        const { mood, predictions, genre } = imageAnalysis;
+        const mainObject = predictions?.[0]?.object || 'scene';
+        const suggestedGenre = genre || 'music';
 
         const moodDescriptions = {
             'upbeat': 'vibrant and energetic',
-            'peaceful': 'calm and serene',
+            'happy': 'joyful and uplifting',
+            'sad': 'melancholic and emotional',
+            'relax': 'calm and serene',
             'intense': 'powerful and dynamic',
-            'melancholic': 'thoughtful and atmospheric',
-            'romantic': 'warm and intimate',
+            'romantic': 'warm and passionate',
             'dark': 'mysterious and intense',
-            'dreamy': 'ethereal and floating',
-            'epic': 'grand and powerful',
-            'angry': 'fierce and intense',
-            'happy': 'bright and cheerful'
+            'dreamy': 'ethereal and dreamy',
+            'epic': 'grand and cinematic',
+            'angry': 'fierce and aggressive'
         };
 
-        return `This ${moodDescriptions[mood]} scene featuring ${mainObject} suggests ${suggestedGenre} music. Finding a matching song...`;
+        return `This ${moodDescriptions[mood] || 'unique'} ${mainObject} suggests ${suggestedGenre} music. Finding a matching song...`;
     }
+
     cleanup() {
-        if (this.tokenRefreshTimeout) {
-            clearTimeout(this.tokenRefreshTimeout);
-            this.tokenRefreshTimeout = null;
-        }
         this.suggestionHistory.clear();
         this.dislikedArtistsCatalog.clear();
-        this.tokenExpirationTime = null;
     }
 }
 
-const recommender = new SongRecommender();
-module.exports = recommender;
+const songRecommender = new SongRecommender();
+module.exports = songRecommender;

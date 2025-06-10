@@ -1,26 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './css/CustomCursor.css';
 
-const CustomCursor = () => {
+const EnhancedCustomCursor = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
-  const [ripples, setRipples] = useState([]);
+  const [isClicking, setIsClicking] = useState(false);
+  const [floatingParticles, setFloatingParticles] = useState([]);
+  const [clickRipples, setClickRipples] = useState([]);
+  
+  const cursorRef = useRef(null);
+  const animationRef = useRef(null);
+  const lastTimeRef = useRef(0);
+  const rippleIdRef = useRef(0);
+
+  const updateCursor = useCallback((timestamp) => {
+    if (!lastTimeRef.current) lastTimeRef.current = timestamp;
+    lastTimeRef.current = timestamp;
+
+    setMousePosition(prevPos => {
+      const easing = isHovering ? 0.15 : 0.12;
+      
+      const newX = prevPos.x + (targetPosition.x - prevPos.x) * easing;
+      const newY = prevPos.y + (targetPosition.y - prevPos.y) * easing;
+      
+      return { x: newX, y: newY };
+    });
+
+    animationRef.current = requestAnimationFrame(updateCursor);
+  }, [targetPosition, isHovering]);
+
+  useEffect(() => {
+    animationRef.current = requestAnimationFrame(updateCursor);
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [updateCursor]);
+
+  useEffect(() => {
+    const generateFloatingParticles = () => {
+      const particles = [];
+      for (let i = 0; i < 3; i++) {
+        particles.push({
+          id: i,
+          angle: (i * 120) * (Math.PI / 180),
+          radius: 20 + i * 6,
+          speed: 0.02 + i * 0.005,
+          opacity: 0.6 - i * 0.15
+        });
+      }
+      setFloatingParticles(particles);
+    };
+
+    generateFloatingParticles();
+  }, []);
+
+  const createRipple = useCallback((x, y) => {
+    const rippleId = rippleIdRef.current++;
+    const newRipple = { id: rippleId, x, y };
+    
+    setClickRipples(prev => [...prev, newRipple]);
+    
+    setTimeout(() => {
+      setClickRipples(prev => prev.filter(ripple => ripple.id !== rippleId));
+    }, 600);
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
+      setTargetPosition({ x: e.clientX, y: e.clientY });
     };
 
-    const handleClick = (e) => {
-      const newRipple = {
-        id: Date.now(),
-        x: e.clientX,
-        y: e.clientY
-      };
-      setRipples(prev => [...prev, newRipple]);
+    const handleMouseDown = (e) => {
+      setIsClicking(true);
+      createRipple(e.clientX, e.clientY);
+      
       setTimeout(() => {
-        setRipples(prev => prev.filter(ripple => ripple.id !== newRipple.id));
-      }, 1000);
+        setIsClicking(false);
+      }, 400);
     };
 
     const handleMouseEnter = (e) => {
@@ -30,6 +89,7 @@ const CustomCursor = () => {
         target.tagName === 'BUTTON' ||
         (target.tagName === 'INPUT' && (target.type === 'submit' || target.type === 'button')) ||
         target.tagName === 'SELECT' ||
+        target.tagName === 'TEXTAREA' ||
         target.closest('.vizion-nav-dot') ||
         target.closest('.vizion-primary-btn') ||
         target.closest('.vizion-feature-btn') ||
@@ -64,9 +124,12 @@ const CustomCursor = () => {
         target.closest('.ResizeButton') ||
         target.closest('.DownloadButton') ||
         target.closest('.upscale-enhance-button') ||
-        // Check for elements with an onClick handler
+        target.closest('[role="button"]') ||
+        target.closest('.interactive') ||
+        target.hasAttribute('data-magnetic') ||
         target.onclick ||
-        target.hasAttribute('onClick')
+        target.hasAttribute('onClick') ||
+        getComputedStyle(target).cursor === 'pointer'
       );
 
       if (isInteractive) {
@@ -81,6 +144,7 @@ const CustomCursor = () => {
         target.tagName === 'BUTTON' ||
         (target.tagName === 'INPUT' && (target.type === 'submit' || target.type === 'button')) ||
         target.tagName === 'SELECT' ||
+        target.tagName === 'TEXTAREA' ||
         target.closest('.vizion-nav-dot') ||
         target.closest('.vizion-primary-btn') ||
         target.closest('.vizion-feature-btn') ||
@@ -115,8 +179,12 @@ const CustomCursor = () => {
         target.closest('.ResizeButton') ||
         target.closest('.DownloadButton') ||
         target.closest('.upscale-enhance-button') ||
+        target.closest('[role="button"]') ||
+        target.closest('.interactive') ||
+        target.hasAttribute('data-magnetic') ||
         target.onclick ||
-        target.hasAttribute('onClick')
+        target.hasAttribute('onClick') ||
+        getComputedStyle(target).cursor === 'pointer'
       );
 
       if (isInteractive) {
@@ -124,44 +192,59 @@ const CustomCursor = () => {
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('click', handleClick);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('mouseover', handleMouseEnter);
     document.addEventListener('mouseout', handleMouseLeave);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('click', handleClick);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mouseover', handleMouseEnter);
       document.removeEventListener('mouseout', handleMouseLeave);
     };
-  }, []);
+  }, [createRipple]);
 
   return (
     <>
-      <div
-        className={`vizion-cursor ${isHovering ? 'vizion-cursor--hover' : ''}`}
-        style={{
-          left: mousePosition.x,
-          top: mousePosition.y
-        }}
-      >
-        <div className="vizion-cursor-dot" />
-        <div className="vizion-cursor-ring" />
-      </div>
-
-      {ripples.map(ripple => (
+      {clickRipples.map(ripple => (
         <div
           key={ripple.id}
-          className="vizion-click-ripple"
+          className="enhanced-cursor-click-ripple"
           style={{
             left: ripple.x,
-            top: ripple.y
+            top: ripple.y,
           }}
         />
       ))}
+
+      <div 
+        ref={cursorRef} 
+        className={`enhanced-cursor ${isHovering ? 'enhanced-cursor--hover' : ''} ${isClicking ? 'enhanced-cursor--click' : ''}`}
+        style={{
+          transform: `translate3d(${mousePosition.x}px, ${mousePosition.y}px, 0)`,
+        }}
+      >
+        <div className="enhanced-cursor-outer-ring" />
+        
+        <div className="enhanced-cursor-middle-ring" />
+        
+        <div className="enhanced-cursor-dot" />
+        
+        {floatingParticles.map(particle => (
+          <div
+            key={particle.id}
+            className="enhanced-cursor-floating-particle"
+            style={{
+              opacity: particle.opacity,
+              animationDelay: `${particle.id * 0.5}s`,
+              animationDuration: `${3 + particle.id * 0.5}s`,
+            }}
+          />
+        ))}
+      </div>
     </>
   );
 };
 
-export default CustomCursor;
+export default EnhancedCustomCursor;
