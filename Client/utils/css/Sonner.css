@@ -74,6 +74,7 @@
   line-height: 1.25rem;
   color: hsl(0 0% 63.9%);
   margin-top: 0.25rem;
+  text-align: left;
 }
 
 @media (prefers-color-scheme: light) {

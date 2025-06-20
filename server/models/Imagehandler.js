@@ -1,20 +1,36 @@
-const mongoose = require('mongoose');
+const AWS = require('aws-sdk');
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
 
-const editedImageSchema = new mongoose.Schema({
-    image: { type: Buffer, required: true },
-    timestamp: { type: String, required: true }
-  });
-  
-    const EditedImage = mongoose.model('EditedImage', editedImageSchema);
+const EditedImage = {
+    create: async (imageData) => {
+        const params = {
+            TableName: 'Images',
+            Item: {
+                imageId: require('crypto').randomUUID(),
+                type: 'EditedImage',
+                image: imageData.image,
+                timestamp: imageData.timestamp
+            }
+        };
+        await dynamoDB.put(params).promise();
+        return params.Item;
+    }
+};
 
-  
-const uploadedImageSchema = new mongoose.Schema({
-    image: { type: Buffer, required: true }, 
-    timestamp: { type: String, required: true } 
-});
+const UploadedImage = {
+    create: async (imageData) => {
+        const params = {
+            TableName: 'Images',
+            Item: {
+                imageId: require('crypto').randomUUID(),
+                type: 'UploadedImage',
+                image: imageData.image,
+                timestamp: imageData.timestamp
+            }
+        };
+        await dynamoDB.put(params).promise();
+        return params.Item;
+    }
+};
 
-    const UploadedImage = mongoose.model('UploadedImage', uploadedImageSchema);
-
-
-module.exports = {UploadedImage,EditedImage};
-
+module.exports = { UploadedImage, EditedImage };

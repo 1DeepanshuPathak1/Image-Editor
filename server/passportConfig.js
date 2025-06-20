@@ -8,7 +8,7 @@ require('dotenv').config();
 
 // Serialize/Deserialize User
 passport.serializeUser((user, done) => {
-    done(null, user.id || user._id);
+    done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
@@ -38,10 +38,11 @@ passport.use('local', new LocalStrategy({
         }
 
         req.session.user = {
-            id: user._id,
+            id: user.id,
             email: user.email,
             name: user.firstName,
-            provider: 'local'
+            provider: 'local',
+            spotifyConnected: !!user.spotifyAccessToken
         };
 
         return done(null, user);
@@ -66,14 +67,13 @@ passport.use('google', new GoogleStrategy({
             }
             return done(null, user);
         }
-        user = new User({
+        user = await User.create({
             googleId: profile.id,
             firstName: profile.name.givenName,
             lastName: profile.name.familyName,
             email: profile.emails[0].value,
-            dateOfBirth: new Date()
+            dateOfBirth: new Date().toISOString()
         });
-        await user.save();
         return done(null, user);
     } catch (error) {
         console.error('Google strategy error:', error);
@@ -108,9 +108,8 @@ passport.use('github', new GitHubStrategy({
             firstName: profile.displayName || profile.username,
             lastName: '',
             email: profile.emails ? profile.emails[0].value : `${profile.username}@github.com`,
-            dateOfBirth: new Date()
+            dateOfBirth: new Date().toISOString()
         });
-        await user.save();
         return done(null, user);
     } catch (error) {
         console.error('GitHub strategy error:', error);
@@ -132,20 +131,20 @@ passport.use('spotify', new SpotifyStrategy({
         'user-library-read'
     ],
     passReqToCallback: true,
-    showDialog: true // Forces re-authentication to ensure scopes are updated
+    showDialog: true
 }, async (req, accessToken, refreshToken, expires_in, profile, done) => {
     try {
-        // Check if user is already logged in
+        // If user is already authenticated, connect Spotify to their existing account
         if (req.isAuthenticated() && req.user) {
-            const user = await User.findById(req.user._id);
+            const user = await User.findById(req.user.id);
             if (!user) {
-                console.error('Spotify OAuth: Authenticated user not found in DB', { userId: req.user._id });
+                console.error('Spotify OAuth: Authenticated user not found in DB', { userId: req.user.id });
                 return done(null, false, { message: 'User not found' });
             }
             user.spotifyId = profile.id;
             user.spotifyAccessToken = accessToken;
             user.spotifyRefreshToken = refreshToken;
-            user.spotifyTokenExpires = new Date(Date.now() + expires_in * 1000);
+            user.spotifyTokenExpires = new Date(Date.now() + expires_in * 1000).toISOString();
             user.spotifyProfile = {
                 displayName: profile.displayName,
                 email: profile.emails?.[0]?.value,
@@ -156,7 +155,7 @@ passport.use('spotify', new SpotifyStrategy({
             return done(null, user);
         }
 
-        // Find or create user
+        // If not authenticated, find or create user by Spotify/email
         let user = await User.findOne({ 
             $or: [{ spotifyId: profile.id }, { email: profile.emails?.[0]?.value }]
         });
@@ -165,7 +164,7 @@ passport.use('spotify', new SpotifyStrategy({
             user.spotifyId = profile.id;
             user.spotifyAccessToken = accessToken;
             user.spotifyRefreshToken = refreshToken;
-            user.spotifyTokenExpires = new Date(Date.now() + expires_in * 1000);
+            user.spotifyTokenExpires = new Date(Date.now() + expires_in * 1000).toISOString();
             user.spotifyProfile = {
                 displayName: profile.displayName,
                 email: profile.emails?.[0]?.value,
@@ -176,23 +175,23 @@ passport.use('spotify', new SpotifyStrategy({
             return done(null, user);
         }
 
-        // Create new user if none exists
-        user = new User({
+        // Create new user with Spotify data
+        user = await User.create({
             spotifyId: profile.id,
             firstName: profile.displayName || 'Spotify User',
+            lastName: '',
             email: profile.emails?.[0]?.value || `${profile.id}@spotify.com`,
             spotifyAccessToken: accessToken,
             spotifyRefreshToken: refreshToken,
-            spotifyTokenExpires: new Date(Date.now() + expires_in * 1000),
+            spotifyTokenExpires: new Date(Date.now() + expires_in * 1000).toISOString(),
             spotifyProfile: {
                 displayName: profile.displayName,
                 email: profile.emails?.[0]?.value,
                 country: profile.country,
                 profilePicture: profile.photos?.[0]
             },
-            dateOfBirth: new Date()
+            dateOfBirth: new Date().toISOString()
         });
-        await user.save();
         return done(null, user);
     } catch (error) {
         console.error('Spotify strategy error:', {

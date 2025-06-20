@@ -1,35 +1,52 @@
-const {Filter} = require('./Filters');
-const {UploadedImage, EditedImage} = require('../models/Imagehandler')
-const moment = require('moment');
+const { EditedImage, UploadedImage } = require('../models/Imagehandler');
+const { executePythonScript } = require('./Filters');
 
-async function FilterRequest(req,res) {
-    const { filterType } = req.params;
-    const { id, rotation = 0, intensity = 50 } = req.query;
-
-    const uploadedImage = await UploadedImage.findById(id);
-    if (!uploadedImage) return res.status(404).json({ message: 'Image not found' });
-
+const FilterRequest = async (req, res) => {
     try {
-        const editedImageBuffer = await Filter(uploadedImage.image, filterType, rotation, intensity);
-        const base64Image = editedImageBuffer.toString('base64');
-        const formattedTime = moment().format('DD/MM/YY-HH:mm');
-        const editedImage = new EditedImage({ image: editedImageBuffer, timestamp: formattedTime });
-        await editedImage.save();
-        res.json({ message: 'Image edited successfully', image: base64Image });
+        const { filterType } = req.params;
+        const { imageUrl } = req.query;
+
+        if (!filterType || !imageUrl) {
+            return res.status(400).json({ error: 'Missing filterType or imageUrl' });
+        }
+
+        const scriptPath = `${__dirname}/../PythonScripts/image_edit.py`;
+        const args = [filterType, imageUrl];
+        const output = await executePythonScript(scriptPath, args);
+
+        const editedImage = await EditedImage.create({
+            image: Buffer.from(output, 'base64'),
+            timestamp: new Date().toISOString()
+        });
+
+        res.status(200).json({ filteredImage: `data:image/png;base64,${editedImage.image.toString('base64')}` });
     } catch (error) {
-        console.error('Error during editing:', error);
-        res.status(500).json({ message: 'Error editing image', error });
+        console.error('Filter request error:', error);
+        res.status(500).json({ error: 'Failed to apply filter', details: error.message });
     }
 };
 
-async function UploadPost(req,res){
-    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-    
-    const formattedTime = moment().format('DD/MM/YY-HH:mm');
-    const uploadedImage = new UploadedImage({ image: req.file.buffer, timestamp: formattedTime });
-    await uploadedImage.save();
-    const base64Image = req.file.buffer.toString('base64');
-    res.json({ message: 'File uploaded successfully', image: base64Image, id: uploadedImage._id });
-}
+const UploadPost = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
 
-module.exports = {FilterRequest,UploadPost};
+        const userId = req.isAuthenticated() ? req.user._id : req.session.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
+
+        const uploadedImage = await UploadedImage.create({
+            image: req.file.buffer,
+            timestamp: new Date().toISOString()
+        });
+
+        res.status(201).json({ message: 'Image uploaded successfully', imageId: uploadedImage.imageId });
+    } catch (error) {
+        console.error('Upload post error:', error);
+        res.status(500).json({ error: 'Failed to upload image', details: error.message });
+    }
+};
+
+module.exports = { FilterRequest, UploadPost };

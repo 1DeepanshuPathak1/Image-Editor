@@ -4,8 +4,8 @@ const multer = require('multer');
 const passport = require('passport');
 const session = require('express-session');
 const SpotifyWebApi = require('spotify-web-api-node');
-const { MongoDB } = require('./controllers/database');
-const MongoStore = require('connect-mongo');
+const AWS = require('aws-sdk');
+const DynamoDBStore = require('connect-dynamodb')({ session: session });
 const { SignUp, SignIn, GoogleCallback, GitHubCallback, SpotifyCallback, SpotifyDisconnect, AuthCheck, isAuthenticated } = require('./controllers/connect');
 const { FilterRequest, UploadPost } = require('./controllers/Getrequests');
 const { ResizeImage } = require('./controllers/resizeImage');
@@ -13,14 +13,19 @@ const { enhanceImage } = require('./controllers/UpscaleImage');
 const songRecommender = require('./controllers/songRecommender');
 const setupSongRoutes = require('./routes/songRoutes');
 const crypto = require('crypto');
-const mongoose = require('mongoose');
 const { User } = require('./models/User'); 
 require('dotenv').config();
+
+// Configure AWS
+AWS.config.update({
+    region: process.env.AWS_REGION || 'us-east-1',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
 
 // Express app initialization
 const app = express();
 const port = process.env.PORT || 3000;
-const connectionURL = 'mongodb://localhost:27017/imageEditorDB';
 
 // Middleware configuration
 const corsOptions = {
@@ -36,14 +41,23 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// DynamoDB session store configuration
+const dynamoDBStore = new DynamoDBStore({
+    table: 'Sessions',
+    AWSConfigJSON: {
+        region: process.env.AWS_REGION || 'us-east-1',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    },
+    ttl: 24 * 60 * 60 * 1000
+});
+
 app.use(session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-        mongoUrl: connectionURL,
-        ttl: 24 * 60 * 60
-    }),
+    store: dynamoDBStore,
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -81,13 +95,21 @@ app.get('/auth/google', (req, res, next) => {
     req.session.returnTo = req.query.returnTo;
     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
-app.get('/auth/google/callback', GoogleCallback);
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: `${process.env.CLIENT_URL}/signin` }), (req, res) => {
+    const returnTo = req.session.returnTo || '/';
+    delete req.session.returnTo;
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3001'}${returnTo}?auth=success`);
+});
 app.get('/auth/github', (req, res, next) => {
     req.session.returnTo = req.query.returnTo;
     passport.authenticate('github', { scope: ['user:email'] })(req, res, next);
 });
-app.get('/auth/github/callback', GitHubCallback);
-app.get('/auth/spotify', (req, res, next) => {
+app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: `${process.env.CLIENT_URL}/signin` }), (req, res) => {
+    const returnTo = req.session.returnTo || '/';
+    delete req.session.returnTo;
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3001'}${returnTo}?auth=success`);
+});
+app.get('/auth/spotify', (req, res, _next) => {
     const returnTo = req.query.returnTo || '/song-recommender';
     req.session.returnTo = returnTo;
     const state = crypto.randomUUID();
@@ -115,21 +137,24 @@ app.get('/auth/spotify/callback', (req, res, next) => {
         return res.redirect(`${process.env.CLIENT_URL}/signin?error=state_mismatch`);
     }
 
-    next();
-}, SpotifyCallback);
+    passport.authenticate('spotify', { 
+        failureRedirect: `${process.env.CLIENT_URL}/signin?error=spotify_auth_failed` 
+    })(req, res, next);
+}, (req, res) => {
+    const returnTo = req.session.returnTo || '/song-recommender';
+    delete req.session.returnTo;
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3001'}${returnTo}?spotifyCallback=true`);
+});
 app.post('/auth/spotify/disconnect', isAuthenticated, SpotifyDisconnect);
 app.get('/auth/check', AuthCheck);
 app.post('/signout', async (req, res) => {
     try {
         if (req.isAuthenticated() && req.user) {
-            const user = await User.findById(req.user._id);
+            const user = await User.findById(req.user._id || req.user.id);
             if (user) {
-                user.spotifyId = null;
-                user.spotifyAccessToken = null;
-                user.spotifyRefreshToken = null;
-                user.spotifyTokenExpires = null;
+                user.clearSpotifyData();
                 await user.save();
-                console.log('Signout: Cleared Spotify tokens for user', { userId: user._id.toString() });
+                console.log('Signout: Cleared Spotify tokens for user', { userId: user.id });
             }
         }
         req.logout((err) => {
@@ -209,11 +234,41 @@ app.use((err, _req, res, _next) => {
     });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        service: 'image-editor-api'
+    });
+});
+
+// Initialize DynamoDB connection test
+const testDynamoDBConnection = async () => {
+    try {
+        const dynamodb = new AWS.DynamoDB();
+        await dynamodb.listTables().promise();
+        console.log('DynamoDB connection established successfully');
+        return true;
+    } catch (error) {
+        console.error('DynamoDB connection error:', error);
+        return false;
+    }
+};
+
 // Start server
 let server;
-MongoDB(connectionURL)
-    .then(() => {
-        server = app.listen(port, () => console.log(`Server running on port ${port}`));
+testDynamoDBConnection()
+    .then((connected) => {
+        if (connected) {
+            server = app.listen(port, () => {
+                console.log(`Server running on port ${port}`);
+                console.log('Using DynamoDB as the database');
+            });
+        } else {
+            console.error('Failed to connect to DynamoDB');
+            process.exit(1);
+        }
     })
     .catch(err => {
         console.error('Database connection error:', err);
@@ -227,15 +282,9 @@ const gracefulShutdown = async () => {
     if (server) {
         await new Promise(resolve => server.close(resolve));
     }
-    try {
-        await mongoose.connection.close();
-        console.log('MongoDB connection closed.');
-    } catch (err) {
-        console.error('Error closing MongoDB connection:', err);
-    }
-    
     console.log('Graceful shutdown completed');
     process.exit(0);
 };
+
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);

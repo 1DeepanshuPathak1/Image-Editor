@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LoginButtons } from '../../utils/ui/LoginButtons';
 import PixelCard from '../../utils/ui/PixelCard';
@@ -14,6 +14,30 @@ function SignIn({ setIsSignedIn }) {
     const [errorMessage, setErrorMessage] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
+    const checkAuthStatus = async () => {
+        try {
+            const response = await fetch('http://localhost:3000/auth/check', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.isAuthenticated) {
+                    setIsSignedIn(true);
+                    const from = location.state?.from || '/';
+                    navigate(from === '/song-recommender' ? '/' : from);
+                }
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+        }
+    };
+
+    useEffect(() => {
+        checkAuthStatus();
+    }, [setIsSignedIn, navigate, location.state]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -22,8 +46,8 @@ function SignIn({ setIsSignedIn }) {
         }));
     };
 
-    const handleSuccessfulSignIn = () => {
-        setIsSignedIn(true);
+    const handleSuccessfulSignIn = async () => {
+        await checkAuthStatus();
         const from = location.state?.from || '/';
         if (from === '/song-recommender') {
             navigate('/');
@@ -40,6 +64,7 @@ function SignIn({ setIsSignedIn }) {
             const response = await fetch('http://localhost:3000/signin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify(formData),
             });
 
@@ -50,7 +75,7 @@ function SignIn({ setIsSignedIn }) {
                 return;
             }
             
-            handleSuccessfulSignIn();
+            await handleSuccessfulSignIn();
         } catch (error) {
             console.error('Sign-in Request Error:', error);
             setErrorMessage('Something went wrong. Please try again later.');
@@ -60,13 +85,13 @@ function SignIn({ setIsSignedIn }) {
     const handleGoogleLogin = () => {
         const returnPath = location.state?.from || '/';
         localStorage.setItem('returnTo', returnPath);
-        window.location.href = 'http://localhost:3000/auth/google';
+        window.location.href = `http://localhost:3000/auth/google?returnTo=${encodeURIComponent(returnPath)}`;
     };
     
     const handleGithubLogin = () => {
         const returnPath = location.state?.from || '/';
         localStorage.setItem('returnTo', returnPath);
-        window.location.href = 'http://localhost:3000/auth/github';
+        window.location.href = `http://localhost:3000/auth/github?returnTo=${encodeURIComponent(returnPath)}`;
     };
 
     const redirectMessages = {

@@ -23,6 +23,24 @@ function SignUp({ setIsSignedIn }) {
         }));
     };
 
+    const checkAuthStatus = async () => {
+        try {
+            const response = await fetch('http://localhost:3000/auth/check', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.isAuthenticated) {
+                    setIsSignedIn(true);
+                }
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (formData.password !== formData.confirmPassword) {
@@ -40,6 +58,7 @@ function SignUp({ setIsSignedIn }) {
             const data = await response.json();
 
             if (response.status === 201) {
+                await checkAuthStatus();
                 setShowMessage(true);
                 setTimeout(() => {
                     window.location.href = "/signin";
@@ -113,7 +132,7 @@ function SignUp({ setIsSignedIn }) {
                         onChange={handleChange}
                         required
                     />
-                    <button className="SigninButton"type="submit">Sign Up</button>
+                    <button className="SigninButton" type="submit">Sign Up</button>
                 </form>
                 <p>
                     Already have an account? <a href="/signin">Sign In</a>

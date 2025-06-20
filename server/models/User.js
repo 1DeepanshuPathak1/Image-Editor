@@ -1,86 +1,205 @@
-const mongoose = require('mongoose');
+const AWS = require('aws-sdk');
 const bcrypt = require('bcrypt');
-const axios = require('axios');
+const { v4: uuidv4 } = require('uuid');
 
-const userSchema = new mongoose.Schema({
-    firstName: { type: String, required: true },
-    middleName: { type: String },
-    lastName: { type: String, required: true },
-    dateOfBirth: { type: Date, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String },
-    googleId: { type: String, sparse: true },
-    githubId: { type: String, sparse: true },
-    spotifyId: { type: String, sparse: true },
-    spotifyAccessToken: { type: String },
-    spotifyRefreshToken: { type: String },
-    spotifyTokenExpires: { type: Date },
-    avatarUrl: { type: String },
-    username: { type: String }
+// Configure AWS DynamoDB
+const dynamodb = new AWS.DynamoDB.DocumentClient({
+    region: process.env.AWS_REGION || 'eu-north-1'
 });
 
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    // Ensure provider IDs are undefined if not set, to avoid null values
-    if (this.googleId === null) this.googleId = undefined;
-    if (this.githubId === null) this.githubId = undefined;
-    if (this.spotifyId === null) this.spotifyId = undefined;
-    next();
-});
-
-userSchema.methods.comparePassword = async function (password) {
-    return bcrypt.compare(password, this.password);
-};
-
-const logSchema = new mongoose.Schema({
-    email: { type: String, required: true },
-    ip: { type: String, required: true },
-    realIP: {type: String},
-    browser: { type: String, required: true },
-    device: { type: String, required: true },
-    status: { type: String, required: true },
-    provider: { type: String, enum: ['local', 'google', 'github', 'spotify'] },
-    timestamp: { type: String, required: true },
-    ipDetails: {
-        country: String,
-        region: String,
-        city: String,
-        timezone: String
+class User {
+    constructor(userData) {
+        this.id = userData.id || userData._id || uuidv4();
+        this._id = this.id; // Keep both for compatibility
+        this.firstName = userData.firstName;
+        this.middleName = userData.middleName;
+        this.lastName = userData.lastName;
+        this.dateOfBirth = userData.dateOfBirth;
+        this.email = userData.email;
+        this.password = userData.password;
+        this.googleId = userData.googleId;
+        this.githubId = userData.githubId;
+        this.spotifyId = userData.spotifyId;
+        this.spotifyAccessToken = userData.spotifyAccessToken;
+        this.spotifyRefreshToken = userData.spotifyRefreshToken;
+        this.spotifyTokenExpires = userData.spotifyTokenExpires;
+        this.spotifyProfile = userData.spotifyProfile;
+        this.avatarUrl = userData.avatarUrl;
+        this.username = userData.username;
+        this.createdAt = userData.createdAt || new Date().toISOString();
+        this.updatedAt = userData.updatedAt || new Date().toISOString();
     }
-});
 
-logSchema.pre('save', async function(next) {
-    try {
-        const ipToCheck = this.realIP || this.ip;
-        if (ipToCheck === '::1') {
-            const response = await axios.get('https://api.ipify.org?format=json');
-            this.realIP = response.data.ip;
+    // Hash password before saving
+    async hashPassword() {
+        if (this.password) {
+            const salt = await bcrypt.genSalt(10);
+            this.password = await bcrypt.hash(this.password, salt);
         }
+        // Clean up null provider IDs
+        if (this.googleId === null) this.googleId = undefined;
+        if (this.githubId === null) this.githubId = undefined;
+        if (this.spotifyId === null) this.spotifyId = undefined;
+    }
 
-        if (this.realIP) {
-            const geoResponse = await axios.get(`http://ip-api.com/json/${this.realIP}`);
-            if (geoResponse.data.status === 'success') {
-                this.ipDetails = {
-                    country: geoResponse.data.country,
-                    region: geoResponse.data.regionName,
-                    city: geoResponse.data.city,
-                    timezone: geoResponse.data.timezone
-                };
+    // Compare password
+    async comparePassword(password) {
+        return bcrypt.compare(password, this.password);
+    }
+
+    // Save user to DynamoDB
+    async save() {
+        this.updatedAt = new Date().toISOString();
+        
+        const params = {
+            TableName: 'Users',
+            Item: {
+                id: this.id,
+                firstName: this.firstName,
+                middleName: this.middleName,
+                lastName: this.lastName,
+                dateOfBirth: this.dateOfBirth,
+                email: this.email,
+                password: this.password,
+                googleId: this.googleId,
+                githubId: this.githubId,
+                spotifyId: this.spotifyId,
+                spotifyAccessToken: this.spotifyAccessToken,
+                spotifyRefreshToken: this.spotifyRefreshToken,
+                spotifyTokenExpires: this.spotifyTokenExpires,
+                spotifyProfile: this.spotifyProfile,
+                avatarUrl: this.avatarUrl,
+                username: this.username,
+                createdAt: this.createdAt,
+                updatedAt: this.updatedAt
             }
+        };
+
+        // Remove undefined values
+        Object.keys(params.Item).forEach(key => {
+            if (params.Item[key] === undefined) {
+                delete params.Item[key];
+            }
+        });
+
+        try {
+            await dynamodb.put(params).promise();
+            return this;
+        } catch (error) {
+            console.error('Error saving user:', error);
+            throw error;
         }
-    } catch (error) {
-        console.error('IP Lookup error:', error);
     }
-    next();
-});
 
-logSchema.path('ip').validate(function(ip) {
-    const ipRegex = /^([0-9]{1,3}\.){3}[0-9]{1,3}$|^::1$|^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/;
-    return ipRegex.test(ip);
-}, 'Invalid IP address format');
+    // Clear Spotify data without setting to null (removes attributes entirely)
+    clearSpotifyData() {
+        delete this.spotifyId;
+        delete this.spotifyAccessToken;
+        delete this.spotifyRefreshToken;
+        delete this.spotifyTokenExpires;
+        delete this.spotifyProfile;
+    }
 
-const Log = mongoose.model('Log', logSchema);
-const User = mongoose.model('User', userSchema);
-module.exports = { User, Log };
+    // Static methods for database operations
+    static async findById(id) {
+        const params = {
+            TableName: 'Users',
+            Key: { id }
+        };
+
+        try {
+            const result = await dynamodb.get(params).promise();
+            if (result.Item) {
+                const user = new User(result.Item);
+                user._id = result.Item.id; // Ensure _id is set correctly
+                return user;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error finding user by ID:', error);
+            throw error;
+        }
+    }
+
+    static async findOne(query) {
+        let params;
+
+        if (query.email) {
+            // Search by email using GSI
+            params = {
+                TableName: 'Users',
+                IndexName: 'EmailIndex',
+                KeyConditionExpression: 'email = :email',
+                ExpressionAttributeValues: {
+                    ':email': query.email
+                }
+            };
+        } else if (query.googleId) {
+            // Search by googleId using GSI
+            params = {
+                TableName: 'Users',
+                IndexName: 'GoogleIdIndex',
+                KeyConditionExpression: 'googleId = :googleId',
+                ExpressionAttributeValues: {
+                    ':googleId': query.googleId
+                }
+            };
+        } else if (query.githubId) {
+            // Search by githubId using GSI
+            params = {
+                TableName: 'Users',
+                IndexName: 'GitHubIdIndex',
+                KeyConditionExpression: 'githubId = :githubId',
+                ExpressionAttributeValues: {
+                    ':githubId': query.githubId
+                }
+            };
+        } else if (query.spotifyId) {
+            // Search by spotifyId using GSI
+            params = {
+                TableName: 'Users',
+                IndexName: 'SpotifyIdIndex',
+                KeyConditionExpression: 'spotifyId = :spotifyId',
+                ExpressionAttributeValues: {
+                    ':spotifyId': query.spotifyId
+                }
+            };
+        } else if (query.$or) {
+            // Handle $or queries (like spotifyId OR email)
+            for (const condition of query.$or) {
+                if (condition.spotifyId) {
+                    const user = await User.findOne({ spotifyId: condition.spotifyId });
+                    if (user) return user;
+                }
+                if (condition.email) {
+                    const user = await User.findOne({ email: condition.email });
+                    if (user) return user;
+                }
+            }
+            return null;
+        } else {
+            throw new Error('Unsupported query format');
+        }
+
+        try {
+            const result = await dynamodb.query(params).promise();
+            if (result.Items && result.Items.length > 0) {
+                const user = new User(result.Items[0]);
+                user._id = result.Items[0].id; // Ensure _id is set correctly
+                return user;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error finding user:', error);
+            throw error;
+        }
+    }
+
+    static async create(userData) {
+        const user = new User(userData);
+        await user.hashPassword();
+        return await user.save();
+    }
+}
+
+module.exports = { User };

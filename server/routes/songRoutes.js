@@ -4,15 +4,21 @@ const multer = require('multer');
 const songRecommender = require('../controllers/songRecommender');
 const { UserMusicPreferences } = require('../models/UserMusic');
 const songRecommendationSystem = require('../controllers/SongRecommendationUtils');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Helper function to validate UUID
+const isValidUserId = (userId) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(userId);
+};
 
 router.post('/save-song', upload.single('image'), async (req, res) => {
     try {
         const { songId, userId, songData } = req.body;
 
-        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        if (!userId || !isValidUserId(userId)) {
             return res.status(400).json({ error: 'Valid user ID is required' });
         }
 
@@ -20,7 +26,7 @@ router.post('/save-song', upload.single('image'), async (req, res) => {
             return res.status(400).json({ error: 'Song ID and image are required' });
         }
 
-        let preferences = await UserMusicPreferences.findOne({ userId });
+        let preferences = await UserMusicPreferences.findByUserId(userId);
         if (!preferences) {
             preferences = await UserMusicPreferences.create({ 
                 userId,
@@ -52,7 +58,7 @@ router.post('/save-song', upload.single('image'), async (req, res) => {
             popularity: parsedSongData.popularity || 0,
             image: req.file.buffer,
             imageType: req.file.mimetype,
-            timestamp: new Date()
+            timestamp: new Date().toISOString()
         };
 
         if (!preferences.savedSongs) {
@@ -65,7 +71,7 @@ router.post('/save-song', upload.single('image'), async (req, res) => {
         await preferences.save();
 
         const responsePreferences = {
-            ...preferences.toObject(),
+            ...preferences,
             savedSongs: preferences.savedSongs.map(song => ({
                 ...song,
                 image: song.image ? `data:${song.imageType};base64,${song.image.toString('base64')}` : null
@@ -90,11 +96,11 @@ router.delete('/saved/:userId/:songId', async (req, res) => {
     try {
         const { userId, songId } = req.params;
 
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
+        if (!isValidUserId(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findOne({ userId });
+        const preferences = await UserMusicPreferences.findByUserId(userId);
         if (!preferences) {
             return res.status(404).json({ error: 'User preferences not found' });
         }
@@ -119,11 +125,11 @@ router.delete('/history/:userId/:songId', async (req, res) => {
     try {
         const { userId, songId } = req.params;
 
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
+        if (!isValidUserId(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findOne({ userId });
+        const preferences = await UserMusicPreferences.findByUserId(userId);
         if (!preferences) {
             return res.status(404).json({ error: 'User preferences not found' });
         }
@@ -147,11 +153,11 @@ router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
     try {
         const { userId, artistId } = req.params;
 
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
+        if (!isValidUserId(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findOne({ userId });
+        const preferences = await UserMusicPreferences.findByUserId(userId);
         if (!preferences) {
             return res.status(404).json({ error: 'User preferences not found' });
         }
@@ -195,11 +201,11 @@ router.get('/preferences/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
 
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
+        if (!isValidUserId(userId)) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        let preferences = await UserMusicPreferences.findOne({ userId });
+        let preferences = await UserMusicPreferences.findByUserId(userId);
         if (!preferences) {
             preferences = await UserMusicPreferences.create({
                 userId,
@@ -212,7 +218,7 @@ router.get('/preferences/:userId', async (req, res) => {
         }
 
         const responsePreferences = {
-            ...preferences.toObject(),
+            ...preferences,
             savedSongs: preferences.savedSongs.map(song => ({
                 songId: song.songId,
                 name: song.name || 'Unknown Track',
@@ -240,7 +246,7 @@ router.post('/feedback', async (req, res) => {
     try {
         const { songId, artistId, type, scope, userId, songData } = req.body;
 
-        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        if (!userId || !isValidUserId(userId)) {
             return res.status(400).json({ error: 'Valid user ID is required' });
         }
 
@@ -248,7 +254,7 @@ router.post('/feedback', async (req, res) => {
             return res.status(400).json({ error: 'Missing required parameters' });
         }
 
-        let preferences = await UserMusicPreferences.findOne({ userId });
+        let preferences = await UserMusicPreferences.findByUserId(userId);
         if (!preferences) {
             preferences = await UserMusicPreferences.create({ userId });
         }
@@ -269,7 +275,7 @@ router.post('/feedback', async (req, res) => {
                 album_art: songData.album_art || '/default-album-art.jpg',
                 external_url: songData.external_url || '',
                 popularity: songData.popularity || 0,
-                timestamp: new Date()
+                timestamp: new Date().toISOString()
             };
 
             if (type === 'like') {
@@ -296,7 +302,7 @@ router.post('/feedback', async (req, res) => {
                 artistId,
                 name: songData.artist || 'Unknown Artist',
                 genre,
-                timestamp: new Date()
+                timestamp: new Date().toISOString()
             };
 
             if (type === 'like') {
@@ -366,7 +372,7 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         const userId = req.body.userId;
         const skipCount = parseInt(req.query.skip) || 0;
 
-        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        if (!userId || !isValidUserId(userId)) {
             return res.status(400).json({ error: 'Valid user ID is required' });
         }
 
@@ -388,8 +394,8 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             req.app.locals.lastImageHash = imageHash;
         }
 
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            const userPrefs = await UserMusicPreferences.findOne({ userId });
+        if (userId && isValidUserId(userId)) {
+            const userPrefs = await UserMusicPreferences.findByUserId(userId);
             if (userPrefs) {
                 preferences.likedSongs = userPrefs.likedSongs || [];
                 preferences.dislikedSongs = userPrefs.dislikedSongs || [];
@@ -472,10 +478,12 @@ router.get('/genres', async (req, res) => {
 
 function setupSongRoutes() {
     router.cleanup = () => {
-        if (req.app.locals.suggestedSongs) {
+        if (req.app && req.app.locals && req.app.locals.suggestedSongs) {
             req.app.locals.suggestedSongs.clear();
         }
-        req.app.locals.lastImageHash = null;
+        if (req.app && req.app.locals) {
+            req.app.locals.lastImageHash = null;
+        }
     };
 
     return router;

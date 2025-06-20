@@ -86,9 +86,9 @@ class SongRecommendationSystem {
             
             const minPopularity = popularityThresholds[userPreferences.popularity];
             if (song.artistPopularity >= minPopularity) {
-                score += this.weights.popularityMatch * 2; // Increase weight for matching popularity
+                score += this.weights.popularityMatch * 2; 
             } else {
-                score -= this.weights.popularityMatch; // Penalize non-matching popularity
+                score -= this.weights.popularityMatch; 
             }
         }
     

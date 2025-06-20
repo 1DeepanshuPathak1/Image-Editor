@@ -1,10 +1,14 @@
+const AWS = require('aws-sdk');
 const SpotifyWebApi = require('spotify-web-api-node');
 const { spawn } = require('child_process');
 const path = require('path');
 const SongRecommendationSystem = require('./SongRecommendationUtils');
-const { User } = require('../models/User');
-const mongoose = require('mongoose');
 require('dotenv').config();
+
+// Configure AWS DynamoDB
+const dynamodb = new AWS.DynamoDB.DocumentClient({
+    region: process.env.AWS_REGION || 'eu-north-1'
+});
 
 class SongRecommender {
     constructor() {
@@ -16,28 +20,70 @@ class SongRecommender {
 
     async initialize() {}
 
+    // DynamoDB User Operations
+    async findUserById(userId) {
+        const params = {
+            TableName: 'Users',
+            Key: { id: userId }
+        };
+
+        try {
+            const result = await dynamodb.get(params).promise();
+            return result.Item || null;
+        } catch (error) {
+            console.error('Error finding user by ID:', error);
+            throw error;
+        }
+    }
+
+    async updateUser(userId, updateData) {
+        const updateExpression = [];
+        const expressionAttributeNames = {};
+        const expressionAttributeValues = {};
+
+        Object.keys(updateData).forEach((key, index) => {
+            const attributeName = `#attr${index}`;
+            const attributeValue = `:val${index}`;
+            
+            updateExpression.push(`${attributeName} = ${attributeValue}`);
+            expressionAttributeNames[attributeName] = key;
+            expressionAttributeValues[attributeValue] = updateData[key];
+        });
+
+        const params = {
+            TableName: 'Users',
+            Key: { id: userId },
+            UpdateExpression: `SET ${updateExpression.join(', ')}`,
+            ExpressionAttributeNames: expressionAttributeNames,
+            ExpressionAttributeValues: expressionAttributeValues,
+            ReturnValues: 'ALL_NEW'
+        };
+
+        try {
+            const result = await dynamodb.update(params).promise();
+            return result.Attributes;
+        } catch (error) {
+            console.error('Error updating user:', error);
+            throw error;
+        }
+    }
+
+    // Spotify API Setup and Authentication
     async getSpotifyApi(userId) {
         try {
             if (!userId) {
                 throw new Error('No user ID provided');
             }
 
-            let validUserId;
-            try {
-                validUserId = new mongoose.Types.ObjectId(userId);
-            } catch (error) {
-                console.error('getSpotifyApi: Invalid userId format', { userId, error: error.message });
-                throw new Error('Invalid user ID format');
-            }
-
-            const user = await User.findById(validUserId);
+            const user = await this.findUserById(userId);
             if (!user) {
-                console.error('getSpotifyApi: User not found in database', { userId: validUserId.toString() });
+                console.error('getSpotifyApi: User not found in database', { userId });
                 throw new Error('User not found');
             }
+
             if (!user.spotifyAccessToken) {
                 console.error('getSpotifyApi: User has no Spotify access token', { 
-                    userId: validUserId.toString(), 
+                    userId,
                     email: user.email,
                     hasSpotifyId: !!user.spotifyId,
                     tokenExpires: user.spotifyTokenExpires
@@ -52,64 +98,86 @@ class SongRecommender {
             });
 
             spotifyApi.setAccessToken(user.spotifyAccessToken);
-            if (user.spotifyRefreshToken) {
-                spotifyApi.setRefreshToken(user.spotifyRefreshToken);
-            } else {
-                console.error('getSpotifyApi: No refresh token available', { userId: validUserId.toString() });
+            
+            if (!user.spotifyRefreshToken) {
+                console.error('getSpotifyApi: No refresh token available', { userId });
                 throw new Error('Spotify refresh token missing. Please re-authenticate with Spotify.');
             }
+            
+            spotifyApi.setRefreshToken(user.spotifyRefreshToken);
 
-            // Force refresh if token is expired
-            if (!user.spotifyTokenExpires || Date.now() > user.spotifyTokenExpires.getTime() - 30000) {
-                console.log('getSpotifyApi: Refreshing Spotify token', { userId: validUserId.toString() });
+            // Check if token needs refresh
+            const tokenExpires = user.spotifyTokenExpires ? new Date(user.spotifyTokenExpires) : null;
+            if (!tokenExpires || Date.now() > tokenExpires.getTime() - 30000) {
+                console.log('getSpotifyApi: Refreshing Spotify token', { userId });
+                
                 try {
                     const data = await spotifyApi.refreshAccessToken();
                     if (!data.body['access_token']) {
                         throw new Error('No access token received after refresh');
                     }
-                    spotifyApi.setAccessToken(data.body['access_token']);
+
+                    const updateData = {
+                        spotifyAccessToken: data.body['access_token'],
+                        spotifyTokenExpires: new Date(Date.now() + data.body['expires_in'] * 1000).toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+
                     if (data.body['refresh_token']) {
+                        updateData.spotifyRefreshToken = data.body['refresh_token'];
                         spotifyApi.setRefreshToken(data.body['refresh_token']);
-                        user.spotifyRefreshToken = data.body['refresh_token'];
                     }
-                    user.spotifyAccessToken = data.body['access_token'];
-                    user.spotifyTokenExpires = new Date(Date.now() + data.body['expires_in'] * 1000);
-                    await user.save();
-                    console.log('getSpotifyApi: Token refreshed successfully', { userId: validUserId.toString() });
+
+                    await this.updateUser(userId, updateData);
+                    spotifyApi.setAccessToken(data.body['access_token']);
+                    
+                    console.log('getSpotifyApi: Token refreshed successfully', { userId });
                 } catch (error) {
                     console.error('getSpotifyApi: Error refreshing Spotify token', { 
-                        userId: validUserId.toString(), 
+                        userId, 
                         error: error.message,
-                        statusCode: error.statusCode,
-                        body: error.body
+                        statusCode: error.statusCode
                     });
-                    user.spotifyAccessToken = null;
-                    user.spotifyRefreshToken = null;
-                    user.spotifyTokenExpires = null;
-                    await user.save();
+                    
+                    await this.updateUser(userId, {
+                        spotifyAccessToken: null,
+                        spotifyRefreshToken: null,
+                        spotifyTokenExpires: null,
+                        updatedAt: new Date().toISOString()
+                    });
+                    
                     throw new Error('Failed to refresh Spotify token. Please re-authenticate with Spotify.');
                 }
             }
 
-            // Verify token scopes and update country if needed
+            // Verify token and update profile if needed
             try {
                 const profile = await spotifyApi.getMe();
                 if (!user.spotifyProfile || !user.spotifyProfile.country) {
-                    user.spotifyProfile = user.spotifyProfile || {};
-                    user.spotifyProfile.country = profile.body.country;
-                    await user.save();
+                    const updatedProfile = {
+                        ...user.spotifyProfile,
+                        country: profile.body.country
+                    };
+                    
+                    await this.updateUser(userId, {
+                        spotifyProfile: updatedProfile,
+                        updatedAt: new Date().toISOString()
+                    });
                 }
             } catch (error) {
                 console.error('getSpotifyApi: Token lacks required scopes or is invalid', {
-                    userId: validUserId.toString(),
+                    userId,
                     error: error.message,
-                    statusCode: error.statusCode,
-                    body: error.body
+                    statusCode: error.statusCode
                 });
-                user.spotifyAccessToken = null;
-                user.spotifyRefreshToken = null;
-                user.spotifyTokenExpires = null;
-                await user.save();
+                
+                await this.updateUser(userId, {
+                    spotifyAccessToken: null,
+                    spotifyRefreshToken: null,
+                    spotifyTokenExpires: null,
+                    updatedAt: new Date().toISOString()
+                });
+                
                 throw new Error('Spotify token invalid or lacks required scopes. Please re-authenticate with Spotify.');
             }
 
@@ -117,8 +185,7 @@ class SongRecommender {
         } catch (error) {
             console.error('getSpotifyApi: Error setting up Spotify API', {
                 userId,
-                error: error.message,
-                stack: error.stack
+                error: error.message
             });
             throw error;
         }
@@ -133,6 +200,7 @@ class SongRecommender {
         }
     }
 
+    // Spotify API Methods  
     async getArtistInfo(artistId, userId) {
         try {
             const spotifyApi = await this.getSpotifyApi(userId);
@@ -141,6 +209,7 @@ class SongRecommender {
             if (!response || !response.body) {
                 throw new Error('No artist data received from Spotify');
             }
+
             return {
                 id: response.body.id,
                 name: response.body.name,
@@ -151,12 +220,8 @@ class SongRecommender {
             };
         } catch (error) {
             console.error('Error fetching artist info from Spotify:', error);
-            if (error.statusCode === 404) {
-                return null;
-            }
-            if (error.statusCode === 429) {
-                throw new Error('Rate limit exceeded when fetching artist info');
-            }
+            if (error.statusCode === 404) return null;
+            if (error.statusCode === 429) throw new Error('Rate limit exceeded when fetching artist info');
             throw error;
         }
     }
@@ -183,12 +248,12 @@ class SongRecommender {
         }
     }
 
+    // Core Recommendation Logic
     async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0, userId) {
         try {
             const spotifyApi = await this.getSpotifyApi(userId);
-
-            // Get user to determine market
-            const user = await User.findById(userId);
+            const user = await this.findUserById(userId);
+            
             if (!user) {
                 throw new Error('User not found');
             }
@@ -200,58 +265,10 @@ class SongRecommender {
             const searchOptions = {
                 limit: 50,
                 offset: skipCount + (Math.floor(Math.random() * 200)),
+                market: this.getMarketFromUser(user, preferences)
             };
     
-            // Use user's country as market, fallback to language-based market
-            const marketMap = {
-                'en': 'US',
-                'es': 'ES',
-                'fr': 'FR',
-                'de': 'DE',
-                'it': 'IT',
-                'pt': 'BR',
-                'ko': 'KR',
-                'ja': 'JP',
-                'hi': 'IN',
-                'ar': 'EG',
-            };
-    
-            const userCountry = user.spotifyProfile?.country;
-            if (userCountry) {
-                searchOptions.market = userCountry;
-            } else if (preferences.language && marketMap[preferences.language]) {
-                searchOptions.market = marketMap[preferences.language];
-            } else {
-                searchOptions.market = 'US'; // Fallback
-            }
-    
-            const mood = preferences.mood || '';
-            const genre = preferences.genre || '';
-    
-            let searchQuery = '';
-    
-            const languageKeywords = {
-                'en': ['english', 'pop', 'rock', 'hip hop', 'country', 'rnb', 'london', 'british'],
-                'es': ['reggaeton', 'salsa', 'latino', 'mexicano'],
-                'fr': ['français', 'chanson', 'rap français', 'paris'],
-                'de': ['deutsch', 'schlager', 'volksmusik', 'berlin'],
-                'it': ['italiano', 'opera', 'tarantella', 'milano'],
-                'pt': ['português', 'samba', 'fado', 'brasil'],
-                'ko': ['k-pop', 'korean', 'seoul', 'ost'],
-                'ja': ['j-pop', 'anime', 'tokyo', 'j-rock'],
-                'hi': ['bollywood', 'indian', 'desi', 'hindi'],
-                'ar': ['arabic', 'khaleeji', 'cairo', 'oud']
-            };
-    
-            if (preferences.language && languageKeywords[preferences.language]) {
-                searchQuery = `language:${preferences.language} OR `;
-                searchQuery += languageKeywords[preferences.language].join(' OR ');
-    
-                if (genre) searchQuery += ` ${genre}`;
-                if (mood) searchQuery += ` ${mood}`;
-            } else {
-                searchQuery = this.buildSearchQuery(mood, genre, preferences, skipCount);
-            }
+            const searchQuery = this.buildSearchQuery(preferences, skipCount);
 
             let searchResults;
             try {
@@ -260,17 +277,19 @@ class SongRecommender {
                 console.error('findSuitableTrack: Spotify API search error', {
                     userId,
                     error: error.message,
-                    statusCode: error.statusCode,
-                    body: error.body,
-                    headers: error.headers
+                    statusCode: error.statusCode
                 });
+                
                 if (error.statusCode === 403) {
-                    user.spotifyAccessToken = null;
-                    user.spotifyRefreshToken = null;
-                    user.spotifyTokenExpires = null;
-                    await user.save();
+                    await this.updateUser(userId, {
+                        spotifyAccessToken: null,
+                        spotifyRefreshToken: null,
+                        spotifyTokenExpires: null,
+                        updatedAt: new Date().toISOString()
+                    });
                     throw new Error('Spotify access denied. Please re-authenticate with Spotify.');
                 }
+                
                 if (error.statusCode === 429) {
                     throw new Error('Spotify API rate limit exceeded. Please try again later.');
                 }
@@ -285,45 +304,7 @@ class SongRecommender {
                 throw new Error('No tracks found with the current search criteria');
             }
     
-            const allowedVersions = preferences.allowedVersions || [];
-    
-            let tracks = searchResults.body.tracks.items
-                .filter(track => !this.suggestionHistory.has(track.uri))
-                .filter(track => !this.isArtistDisliked(track.artists[0].id))
-                .filter(track => {
-                    const lowerName = track.name.toLowerCase();
-                    return !(
-                        (!allowedVersions.includes('lofi') && (lowerName.includes('lofi') || lowerName.includes('lo fi') || lowerName.includes('lo-fi'))) ||
-                        (!allowedVersions.includes('instrumental') && lowerName.includes('instrumental')) ||
-                        (!allowedVersions.includes('reverb') && lowerName.includes('reverb')) ||
-                        (!allowedVersions.includes('remix') && (lowerName.includes('remix') || lowerName.includes('mix'))) ||
-                        (!allowedVersions.includes('sped-up') && lowerName.includes('sped up')) ||
-                        (!allowedVersions.includes('study') && lowerName.includes('study')) ||
-                        (!allowedVersions.includes('mashup') && lowerName.includes('mashup')) ||
-                        (!allowedVersions.includes('stereo') && lowerName.includes('stereo')) ||
-                        (!allowedVersions.includes('acoustic') && lowerName.includes('acoustic')) ||
-                        (!allowedVersions.includes('beats') && lowerName.includes('beats')) ||
-                        (!allowedVersions.includes('slowed') && lowerName.includes('slowed')) ||
-                        (!allowedVersions.includes('cover') && lowerName.includes('cover')) ||
-                        (!allowedVersions.includes('live') && lowerName.includes('live')) ||
-                        (!allowedVersions.includes('extended') && lowerName.includes('extended'))
-                    );
-                })
-                .map(track => ({
-                    name: track.name,
-                    artist: track.artists[0].name,
-                    artist_id: track.artists[0].id,
-                    uri: track.uri,
-                    preview_url: track.preview_url,
-                    external_url: track.external_urls.spotify,
-                    album_art: track.album.images[0]?.url,
-                    popularity: track.popularity,
-                    genre: preferences.genre || '',
-                    mood: preferences.mood || '',
-                    score: track.popularity + (Math.random() * 20)
-                }));
-    
-            tracks.forEach(track => this.suggestionHistory.add(track.uri));
+            let tracks = this.filterAndProcessTracks(searchResults.body.tracks.items, preferences);
     
             if (tracks.length === 0) {
                 console.warn('findSuitableTrack: No valid tracks after filtering', { userId, searchQuery });
@@ -344,12 +325,139 @@ class SongRecommender {
                     dislikedSongs: preferences.dislikedSongs || []
                 }
             );
+            
             return rankedTracks;
     
         } catch (error) {
             console.error('findSuitableTrack: Error finding tracks', { userId, error: error.message });
             throw error;
         }
+    }
+
+    // Helper Methods
+    getMarketFromUser(user, preferences) {
+        const marketMap = {
+            'en': 'US', 'es': 'ES', 'fr': 'FR', 'de': 'DE', 'it': 'IT',
+            'pt': 'BR', 'ko': 'KR', 'ja': 'JP', 'hi': 'IN', 'ar': 'EG'
+        };
+
+        const userCountry = user.spotifyProfile?.country;
+        if (userCountry) return userCountry;
+        if (preferences.language && marketMap[preferences.language]) {
+            return marketMap[preferences.language];
+        }
+        return 'US';
+    }
+
+    buildSearchQuery(preferences, skipCount) {
+        const { mood = '', genre = '', language = '', artist, popularity } = preferences;
+        let query = '';
+
+        // Language-specific search
+        if (language) {
+            const languageKeywords = {
+                'en': ['english', 'pop', 'rock', 'hip hop', 'country', 'rnb', 'london', 'british'],
+                'es': ['reggaeton', 'salsa', 'latino', 'mexicano'],
+                'fr': ['français', 'chanson', 'rap français', 'paris'],
+                'de': ['deutsch', 'schlager', 'volksmusik', 'berlin'],
+                'it': ['italiano', 'opera', 'tarantella', 'milano'],
+                'pt': ['português', 'samba', 'fado', 'brasil'],
+                'ko': ['k-pop', 'korean', 'seoul', 'ost'],
+                'ja': ['j-pop', 'anime', 'tokyo', 'j-rock'],
+                'hi': ['bollywood', 'indian', 'desi', 'hindi'],
+                'ar': ['arabic', 'khaleeji', 'cairo', 'oud']
+            };
+
+            if (languageKeywords[language]) {
+                query = `arijit:${language} OR `;
+                query += languageKeywords[language].join(' OR ');
+                if (genre) query += ` ${genre}`;
+                if (mood) query += ` ${mood}`;
+                return query;
+            }
+        }
+
+        // Standard search query building
+        if (genre) query += `genre:${genre}`;
+        
+        if (artist) {
+            const artistName = typeof artist === 'string' ? artist : artist.name;
+            if (artistName) {
+                const sanitizedName = artistName.replace(/['"]/g, '').trim();
+                if (sanitizedName) query += ` artist:"${sanitizedName}"`;
+            }
+        }
+
+        // Add mood-based seed words
+        const moodSeedWords = this.getMoodSeedWords(mood);
+        if (moodSeedWords?.length > 0) {
+            const seedWordsToUse = skipCount > 0
+                ? moodSeedWords[skipCount % moodSeedWords.length]
+                : moodSeedWords.join(' ');
+            query = `${seedWordsToUse} ${query}`;
+        }
+
+        // Skip certain track types on retry
+        if (skipCount > 0) {
+            const randomWords = ['remix', 'live', 'instrumental', 'cover', 'acoustic', 'extended'];
+            const randomWord = randomWords[skipCount % randomWords.length];
+            query += ` NOT ${randomWord}`;
+            
+            if (skipCount > 30) {
+                const secondRandomWord = randomWords[(skipCount + 3) % randomWords.length];
+                query += ` NOT ${secondRandomWord}`;
+            }
+        }
+
+        return query.trim() || 'music';
+    }
+
+    filterAndProcessTracks(tracks, preferences) {
+        const allowedVersions = preferences.allowedVersions || [];
+        
+        return tracks
+            .filter(track => !this.suggestionHistory.has(track.uri))
+            .filter(track => !this.isArtistDisliked(track.artists[0].id))
+            .filter(track => {
+                const lowerName = track.name.toLowerCase();
+                const unwantedVersions = [
+                    { key: 'lofi', terms: ['lofi', 'lo fi', 'lo-fi'] },
+                    { key: 'instrumental', terms: ['instrumental'] },
+                    { key: 'reverb', terms: ['reverb'] },
+                    { key: 'remix', terms: ['remix', 'mix'] },
+                    { key: 'sped-up', terms: ['sped up'] },
+                    { key: 'study', terms: ['study'] },
+                    { key: 'mashup', terms: ['mashup'] },
+                    { key: 'stereo', terms: ['stereo'] },
+                    { key: 'acoustic', terms: ['acoustic'] },
+                    { key: 'beats', terms: ['beats'] },
+                    { key: 'slowed', terms: ['slowed'] },
+                    { key: 'cover', terms: ['cover'] },
+                    { key: 'live', terms: ['live'] },
+                    { key: 'extended', terms: ['extended'] }
+                ];
+
+                return !unwantedVersions.some(version => 
+                    !allowedVersions.includes(version.key) && 
+                    version.terms.some(term => lowerName.includes(term))
+                );
+            })
+            .map(track => {
+                this.suggestionHistory.add(track.uri);
+                return {
+                    name: track.name,
+                    artist: track.artists[0].name,
+                    artist_id: track.artists[0].id,
+                    uri: track.uri,
+                    preview_url: track.preview_url,
+                    external_url: track.external_urls.spotify,
+                    album_art: track.album.images[0]?.url,
+                    popularity: track.popularity,
+                    genre: preferences.genre || '',
+                    mood: preferences.mood || '',
+                    score: track.popularity + (Math.random() * 20)
+                };
+            });
     }
 
     shuffleArray(array) {
@@ -372,9 +480,7 @@ class SongRecommender {
     
         for (const artist of dislikedArtists) {
             const artistId = typeof artist === 'object' ? artist.artistId : artist;
-            if (this.dislikedArtistsCatalog.has(artistId)) {
-                continue;
-            }
+            if (this.dislikedArtistsCatalog.has(artistId)) continue;
     
             try {
                 if (typeof artist === 'object' && artist.name) {
@@ -385,6 +491,7 @@ class SongRecommender {
                     });
                     continue;
                 }
+                
                 const spotifyApi = await this.getSpotifyApi(userId);
                 const artistData = await spotifyApi.getArtist(artistId);
                 this.dislikedArtistsCatalog.set(artistId, {
@@ -403,80 +510,37 @@ class SongRecommender {
         }
     }
 
-    buildSearchQuery(mood, genre, preferences, skipCount) {
-        let query = '';
-        if (genre) {
-            query += `genre:${genre}`;
-        }
-        if (preferences.artist) {
-            if (typeof preferences.artist === 'string') {
-                query += ` artist:${preferences.artist}`;
-            } else if (preferences.artist.name) {
-                const sanitizedArtistName = preferences.artist.name
-                    .replace(/['"]/g, '')
-                    .trim();
-                if (sanitizedArtistName) {
-                    query += ` artist:"${sanitizedArtistName}"`;
-                }
-            }
-        }
-        const randomWords = ['remix', 'live', 'instrumental', 'cover', 'acoustic', 'extended'];
-        if (skipCount > 0) {
-            const randomWord = randomWords[skipCount % randomWords.length];
-            query += ` NOT ${randomWord}`;
-            if (skipCount > 30) {
-                const secondRandomWord = randomWords[(skipCount + 3) % randomWords.length];
-                query += ` NOT ${secondRandomWord}`;
-            }
-        }
-        if (preferences.popularity) {
-            if (preferences.popularity === 'undiscovered') {
-                query += ' ';
-            }
-        }
-        const moodSeedWords = this.getMoodSeedWords(mood);
-        if (moodSeedWords?.length > 0) {
-            const seedWordsToUse = skipCount > 0
-                ? moodSeedWords[skipCount % moodSeedWords.length]
-                : moodSeedWords.join(' ');
-            query = `${seedWordsToUse} ${query}`;
-        }
-        return query.trim() || 'music';
-    }
-
     broadenSearchPreferences(preferences, retryCount) {
         const broadenedPrefs = { ...preferences };
-        if (retryCount >= 1) {
-            if (broadenedPrefs.popularity) {
-                delete broadenedPrefs.popularity;
-            }
+        
+        if (retryCount >= 1 && broadenedPrefs.popularity) {
+            delete broadenedPrefs.popularity;
         }
-        if (retryCount >= 2) {
-            if (broadenedPrefs.language) {
-                delete broadenedPrefs.language;
-            }
+        
+        if (retryCount >= 2 && broadenedPrefs.language) {
+            delete broadenedPrefs.language;
         }
-        if (retryCount >= 3) {
-            if (broadenedPrefs.genre) {
-                const genreRelations = {
-                    'rock': ['alternative', 'indie', 'metal'],
-                    'pop': ['indie', 'dance', 'electronic'],
-                    'hip-hop': ['rap', 'rnb', 'trap'],
-                    'rnb': ['soul', 'hip-hop', 'funk'],
-                    'electronic': ['house', 'techno', 'dubstep'],
-                    'classical': ['orchestral', 'piano', 'instrumental'],
-                    'jazz': ['blues', 'soul', 'funk'],
-                    'indie': ['alternative', 'folk', 'rock'],
-                    'metal': ['hard-rock', 'punk', 'thrash'],
-                    'folk': ['acoustic', 'country', 'indie'],
-                    'blues': ['jazz', 'soul', 'rock'],
-                    'country': ['folk', 'americana', 'bluegrass'],
-                    'latin': ['reggaeton', 'salsa', 'tropical'],
-                    'reggae': ['dancehall', 'dub', 'ska']
-                };
-                broadenedPrefs.genre = genreRelations[broadenedPrefs.genre]?.[0] || '';
-            }
+        
+        if (retryCount >= 3 && broadenedPrefs.genre) {
+            const genreRelations = {
+                'rock': ['alternative', 'indie', 'metal'],
+                'pop': ['indie', 'dance', 'electronic'],
+                'hip-hop': ['rap', 'rnb', 'trap'],
+                'rnb': ['soul', 'hip-hop', 'funk'],
+                'electronic': ['house', 'techno', 'dubstep'],
+                'classical': ['orchestral', 'piano', 'instrumental'],
+                'jazz': ['blues', 'soul', 'funk'],
+                'indie': ['alternative', 'folk', 'rock'],
+                'metal': ['hard-rock', 'punk', 'thrash'],
+                'folk': ['acoustic', 'country', 'indie'],
+                'blues': ['jazz', 'soul', 'rock'],
+                'country': ['folk', 'americana', 'bluegrass'],
+                'latin': ['reggaeton', 'salsa', 'tropical'],
+                'reggae': ['dancehall', 'dub', 'ska']
+            };
+            broadenedPrefs.genre = genreRelations[broadenedPrefs.genre]?.[0] || '';
         }
+        
         return broadenedPrefs;
     }
 
@@ -494,22 +558,6 @@ class SongRecommender {
             'angry': ['aggressive', 'heavy', 'rage', 'tension']
         };
         return moodSeedMap[mood] || [];
-    }
-
-    getMoodAudioFeatures(mood) {
-        const moodFeatureMap = {
-            'upbeat': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.6, max_valence: 1.0, min_tempo: 110 },
-            'happy': { min_energy: 0.6, max_energy: 0.9, min_valence: 0.7, max_valence: 1.0, min_tempo: 100 },
-            'sad': { min_energy: 0.2, max_energy: 0.6, min_valence: 0.0, max_valence: 0.4, max_tempo: 100 },
-            'relax': { min_energy: 0.0, max_energy: 0.4, min_valence: 0.3, max_valence: 0.8, max_tempo: 100 },
-            'intense': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.2, max_valence: 0.7, min_tempo: 120 },
-            'romantic': { min_energy: 0.3, max_energy: 0.6, min_valence: 0.4, max_valence: 0.8, target_acousticness: 0.5 },
-            'dark': { min_energy: 0.4, max_energy: 0.8, min_valence: 0.0, max_valence: 0.4, target_instrumentalness: 0.3 },
-            'dreamy': { min_energy: 0.3, max_energy: 0.7, min_valence: 0.3, max_valence: 0.7, target_instrumentalness: 0.4 },
-            'epic': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.4, max_valence: 0.8, target_instrumentalness: 0.5 },
-            'angry': { min_energy: 0.7, max_energy: 1.0, min_valence: 0.0, max_valence: 0.3, min_tempo: 120 }
-        };
-        return moodFeatureMap[mood] || {};
     }
 
     clearOldSuggestionHistory() {
@@ -543,7 +591,7 @@ class SongRecommender {
             } catch (error) {
                 console.error('Retry strategy failed:', error);
                 if (error.message.includes('Spotify')) {
-                    throw error; // Stop retrying on Spotify auth errors
+                    throw error;
                 }
             }
         }
@@ -551,11 +599,11 @@ class SongRecommender {
         throw new Error('No suitable tracks found after retry attempts');
     }
 
+    // Main Recommendation Method
     async getSongRecommendation(imageAnalysis, skipCount = 0, preferences = {}, userId) {
         try {
             this.clearOldSuggestionHistory();
     
-            // Check Spotify authentication status first
             const authStatus = await this.checkSpotifyAuth(userId);
             if (!authStatus.isAuthenticated) {
                 throw new Error(authStatus.error || 'User not authenticated with Spotify');
@@ -571,6 +619,7 @@ class SongRecommender {
                 dislikedArtists: preferences.dislikedArtists || [],
                 likedSongs: preferences.likedSongs || [],
                 dislikedSongs: preferences.dislikedSongs || [],
+                allowedVersions: preferences.allowedVersions || [],
                 randomSeed: Date.now()
             };
     
@@ -580,19 +629,20 @@ class SongRecommender {
             } catch (error) {
                 console.error('getSongRecommendation: Initial search failed', { userId, error: error.message });
                 if (error.message.includes('Spotify')) {
-                    throw error; // Propagate Spotify auth errors
+                    throw error;
                 }
                 return await this.retrySearch(combinedPreferences, skipCount, userId);
             }
         } catch (error) {
             console.error('getSongRecommendation: Recommendation error', { userId, error: error.message });
             if (error.message.includes('Spotify')) {
-                throw error; // Let the frontend handle Spotify auth errors
+                throw error;
             }
             return [this.getFallbackTrack()];
         }
     }
 
+    // Utility Methods
     async getAvailableGenres(userId) {
         try {
             const spotifyApi = await this.getSpotifyApi(userId);
@@ -632,6 +682,7 @@ class SongRecommender {
         return fallbackTracks[Math.floor(Math.random() * fallbackTracks.length)];
     }
 
+    // Image Analysis Methods
     async analyzeImage(imageBuffer) {
         return new Promise((resolve, reject) => {
             const pythonProcess = spawn('python', [
