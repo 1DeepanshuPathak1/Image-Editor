@@ -3,8 +3,6 @@ const router = express.Router();
 const multer = require('multer');
 const songRecommender = require('../controllers/songRecommender');
 const { UserMusicPreferences } = require('../models/UserMusic');
-const songRecommendationSystem = require('../controllers/SongRecommendationUtils');
-const { v4: uuidv4 } = require('uuid');
 
 const upload = multer({ storage: multer.memoryStorage() });
 

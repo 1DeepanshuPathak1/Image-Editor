@@ -39,7 +39,6 @@ passport.use('local', new LocalStrategy({
 
         req.session.user = {
             id: user.id,
-            email: user.email,
             name: user.firstName,
             provider: 'local',
             spotifyConnected: !!user.spotifyAccessToken
@@ -59,20 +58,15 @@ passport.use('google', new GoogleStrategy({
     callbackURL: "http://localhost:3000/auth/google/callback"
 }, async (_accessToken, _refreshToken, profile, done) => {
     try {
-        let user = await User.findOne({ email: profile.emails[0].value });
+        let user = await User.findOne({ googleId: profile.id });
         if (user) {
-            if (!user.googleId) {
-                user.googleId = profile.id;
-                await user.save();
-            }
             return done(null, user);
         }
         user = await User.create({
             googleId: profile.id,
             firstName: profile.name.givenName,
             lastName: profile.name.familyName,
-            email: profile.emails[0].value,
-            dateOfBirth: new Date().toISOString()
+            country: 'US' // Default country
         });
         return done(null, user);
     } catch (error) {
@@ -94,21 +88,11 @@ passport.use('github', new GitHubStrategy({
             return done(null, user);
         }
 
-        if (profile.emails && profile.emails.length > 0) {
-            user = await User.findOne({ email: profile.emails[0].value });
-            if (user) {
-                user.githubId = profile.id;
-                await user.save();
-                return done(null, user);
-            }
-        }
-
         user = await User.create({
             githubId: profile.id,
             firstName: profile.displayName || profile.username,
             lastName: '',
-            email: profile.emails ? profile.emails[0].value : `${profile.username}@github.com`,
-            dateOfBirth: new Date().toISOString()
+            country: 'US' // Default country
         });
         return done(null, user);
     } catch (error) {
@@ -132,7 +116,7 @@ passport.use('spotify', new SpotifyStrategy({
     ],
     passReqToCallback: true,
     showDialog: true
-}, async (req, accessToken, refreshToken, expires_in, profile, done) => {
+}, async (req, accessToken, refreshToken, _expires_in, profile, done) => {
     try {
         // If user is already authenticated, connect Spotify to their existing account
         if (req.isAuthenticated() && req.user) {
@@ -144,33 +128,19 @@ passport.use('spotify', new SpotifyStrategy({
             user.spotifyId = profile.id;
             user.spotifyAccessToken = accessToken;
             user.spotifyRefreshToken = refreshToken;
-            user.spotifyTokenExpires = new Date(Date.now() + expires_in * 1000).toISOString();
-            user.spotifyProfile = {
-                displayName: profile.displayName,
-                email: profile.emails?.[0]?.value,
-                country: profile.country, 
-                profilePicture: profile.photos?.[0]
-            };
+            user.country = profile.country || 'US';
             await user.save();
             return done(null, user);
         }
 
-        // If not authenticated, find or create user by Spotify/email
-        let user = await User.findOne({ 
-            $or: [{ spotifyId: profile.id }, { email: profile.emails?.[0]?.value }]
-        });
+        // If not authenticated, find or create user by Spotify ID
+        let user = await User.findOne({ spotifyId: profile.id });
 
         if (user) {
             user.spotifyId = profile.id;
             user.spotifyAccessToken = accessToken;
             user.spotifyRefreshToken = refreshToken;
-            user.spotifyTokenExpires = new Date(Date.now() + expires_in * 1000).toISOString();
-            user.spotifyProfile = {
-                displayName: profile.displayName,
-                email: profile.emails?.[0]?.value,
-                country: profile.country,
-                profilePicture: profile.photos?.[0]
-            };
+            user.country = profile.country || 'US';
             await user.save();
             return done(null, user);
         }
@@ -180,17 +150,9 @@ passport.use('spotify', new SpotifyStrategy({
             spotifyId: profile.id,
             firstName: profile.displayName || 'Spotify User',
             lastName: '',
-            email: profile.emails?.[0]?.value || `${profile.id}@spotify.com`,
+            country: profile.country || 'US',
             spotifyAccessToken: accessToken,
-            spotifyRefreshToken: refreshToken,
-            spotifyTokenExpires: new Date(Date.now() + expires_in * 1000).toISOString(),
-            spotifyProfile: {
-                displayName: profile.displayName,
-                email: profile.emails?.[0]?.value,
-                country: profile.country,
-                profilePicture: profile.photos?.[0]
-            },
-            dateOfBirth: new Date().toISOString()
+            spotifyRefreshToken: refreshToken
         });
         return done(null, user);
     } catch (error) {

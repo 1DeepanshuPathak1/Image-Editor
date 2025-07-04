@@ -18,7 +18,7 @@ require('dotenv').config();
 
 // Configure AWS
 AWS.config.update({
-    region: process.env.AWS_REGION || 'us-east-1',
+    region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
 });
@@ -46,7 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 const dynamoDBStore = new DynamoDBStore({
     table: 'Sessions',
     AWSConfigJSON: {
-        region: process.env.AWS_REGION || 'us-east-1',
+        region: process.env.AWS_REGION,
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     },
@@ -149,37 +149,29 @@ app.post('/auth/spotify/disconnect', isAuthenticated, SpotifyDisconnect);
 app.get('/auth/check', AuthCheck);
 app.post('/signout', async (req, res) => {
     try {
-        if (req.isAuthenticated() && req.user) {
-            const user = await User.findById(req.user._id || req.user.id);
-            if (user) {
-                user.clearSpotifyData();
-                await user.save();
-                console.log('Signout: Cleared Spotify tokens for user', { userId: user.id });
-            }
-        }
         req.logout((err) => {
+        if (err) {
+            console.error('Logout error during Passport logout:', err);
+            return res.status(500).json({ message: 'Failed to sign out (Passport logout error)' });
+        }
+        if (req.session.user) {
+            delete req.session.user;
+        }
+        if (req.session.spotifyState) {
+            delete req.session.spotifyState;
+        }
+        if (req.session.returnTo) {
+            delete req.session.returnTo;
+        }
+        req.session.destroy((err) => {
             if (err) {
-                console.error('Logout error during Passport logout:', err);
-                return res.status(500).json({ message: 'Failed to sign out (Passport logout error)' });
+                console.error('Session destroy error:', err);
+                return res.status(500).json({ message: 'Failed to destroy session' });
             }
-            if (req.session.user) {
-                delete req.session.user;
-            }
-            if (req.session.spotifyState) {
-                delete req.session.spotifyState;
-            }
-            if (req.session.returnTo) {
-                delete req.session.returnTo;
-            }
-            req.session.destroy((err) => {
-                if (err) {
-                    console.error('Session destroy error:', err);
-                    return res.status(500).json({ message: 'Failed to destroy session' });
-                }
-                res.clearCookie('connect.sid', { path: '/' });
-                res.clearCookie('spotify_auth_state', { path: '/' });
-                res.status(200).json({ message: 'Signed out successfully' });
-            });
+            res.clearCookie('connect.sid', { path: '/' });
+            res.clearCookie('spotify_auth_state', { path: '/' });
+            res.status(200).json({ message: 'Signed out successfully' });
+        });
         });
     } catch (error) {
         console.error('Signout error:', error);

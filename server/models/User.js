@@ -14,7 +14,6 @@ class User {
         this.firstName = userData.firstName;
         this.middleName = userData.middleName;
         this.lastName = userData.lastName;
-        this.dateOfBirth = userData.dateOfBirth;
         this.email = userData.email;
         this.password = userData.password;
         this.googleId = userData.googleId;
@@ -22,12 +21,7 @@ class User {
         this.spotifyId = userData.spotifyId;
         this.spotifyAccessToken = userData.spotifyAccessToken;
         this.spotifyRefreshToken = userData.spotifyRefreshToken;
-        this.spotifyTokenExpires = userData.spotifyTokenExpires;
-        this.spotifyProfile = userData.spotifyProfile;
-        this.avatarUrl = userData.avatarUrl;
-        this.username = userData.username;
-        this.createdAt = userData.createdAt || new Date().toISOString();
-        this.updatedAt = userData.updatedAt || new Date().toISOString();
+        this.country = userData.country;
     }
 
     // Hash password before saving
@@ -49,8 +43,6 @@ class User {
 
     // Save user to DynamoDB
     async save() {
-        this.updatedAt = new Date().toISOString();
-        
         const params = {
             TableName: 'Users',
             Item: {
@@ -58,7 +50,6 @@ class User {
                 firstName: this.firstName,
                 middleName: this.middleName,
                 lastName: this.lastName,
-                dateOfBirth: this.dateOfBirth,
                 email: this.email,
                 password: this.password,
                 googleId: this.googleId,
@@ -66,12 +57,7 @@ class User {
                 spotifyId: this.spotifyId,
                 spotifyAccessToken: this.spotifyAccessToken,
                 spotifyRefreshToken: this.spotifyRefreshToken,
-                spotifyTokenExpires: this.spotifyTokenExpires,
-                spotifyProfile: this.spotifyProfile,
-                avatarUrl: this.avatarUrl,
-                username: this.username,
-                createdAt: this.createdAt,
-                updatedAt: this.updatedAt
+                country: this.country
             }
         };
 
@@ -96,8 +82,6 @@ class User {
         delete this.spotifyId;
         delete this.spotifyAccessToken;
         delete this.spotifyRefreshToken;
-        delete this.spotifyTokenExpires;
-        delete this.spotifyProfile;
     }
 
     // Static methods for database operations

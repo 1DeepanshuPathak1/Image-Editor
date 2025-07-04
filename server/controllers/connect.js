@@ -3,12 +3,12 @@ const passport = require('passport');
 
 async function SignUp(req, res) {
     try {
-        const { firstName, middleName, lastName, dateOfBirth, email, password } = req.body;
+        const { firstName, middleName, lastName, email, password, country } = req.body;
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
-        const newUser = await User.create({ firstName, middleName, lastName, dateOfBirth, email, password });
+        const newUser = await User.create({ firstName, middleName, lastName, email, password, country });
 
         res.status(201).json({ message: 'User created successfully' });
     } catch (error) {
@@ -41,7 +41,6 @@ async function SignIn(req, res) {
 
                 req.session.user = {
                     id: user.id,
-                    email: user.email,
                     name: user.firstName,
                     provider: 'local',
                     spotifyConnected: !!user.spotifyAccessToken
@@ -63,7 +62,6 @@ async function SignIn(req, res) {
                     message: 'Sign in successful!',
                     user: {
                         id: user.id,
-                        email: user.email,
                         name: user.firstName,
                         spotifyConnected: !!user.spotifyAccessToken
                     }
@@ -90,7 +88,6 @@ const GoogleCallback = [
 
             req.session.user = {
                 id: req.user.id,
-                email: req.user.email,
                 name: req.user.firstName,
                 provider: 'google',
                 spotifyConnected: !!req.user.spotifyAccessToken
@@ -120,7 +117,6 @@ const GitHubCallback = [
             
             req.session.user = {
                 id: req.user.id,
-                email: req.user.email,
                 name: req.user.firstName,
                 provider: 'github',
                 spotifyConnected: !!req.user.spotifyAccessToken
@@ -161,7 +157,6 @@ const SpotifyCallback = [
             // Update session with Spotify connection status
             req.session.user = {
                 id: req.user.id,
-                email: req.user.email,
                 name: req.user.firstName,
                 provider: req.session.user?.provider || 'local',
                 spotifyConnected: true

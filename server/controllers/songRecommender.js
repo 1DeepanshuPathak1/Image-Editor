@@ -7,7 +7,7 @@ require('dotenv').config();
 
 // Configure AWS DynamoDB
 const dynamodb = new AWS.DynamoDB.DocumentClient({
-    region: process.env.AWS_REGION || 'eu-north-1'
+    region: process.env.AWS_REGION
 });
 
 class SongRecommender {
@@ -84,9 +84,7 @@ class SongRecommender {
             if (!user.spotifyAccessToken) {
                 console.error('getSpotifyApi: User has no Spotify access token', { 
                     userId,
-                    email: user.email,
-                    hasSpotifyId: !!user.spotifyId,
-                    tokenExpires: user.spotifyTokenExpires
+                    hasSpotifyId: !!user.spotifyId
                 });
                 throw new Error('User not authenticated with Spotify');
             }
@@ -106,11 +104,16 @@ class SongRecommender {
             
             spotifyApi.setRefreshToken(user.spotifyRefreshToken);
 
-            // Check if token needs refresh
-            const tokenExpires = user.spotifyTokenExpires ? new Date(user.spotifyTokenExpires) : null;
-            if (!tokenExpires || Date.now() > tokenExpires.getTime() - 30000) {
-                console.log('getSpotifyApi: Refreshing Spotify token', { userId });
-                
+            // Attempt to verify token
+            try {
+                await spotifyApi.getMe();
+            } catch (error) {
+                console.error('getSpotifyApi: Token may be invalid, attempting refresh', {
+                    userId,
+                    error: error.message,
+                    statusCode: error.statusCode
+                });
+
                 try {
                     const data = await spotifyApi.refreshAccessToken();
                     if (!data.body['access_token']) {
@@ -118,9 +121,7 @@ class SongRecommender {
                     }
 
                     const updateData = {
-                        spotifyAccessToken: data.body['access_token'],
-                        spotifyTokenExpires: new Date(Date.now() + data.body['expires_in'] * 1000).toISOString(),
-                        updatedAt: new Date().toISOString()
+                        spotifyAccessToken: data.body['access_token']
                     };
 
                     if (data.body['refresh_token']) {
@@ -132,53 +133,20 @@ class SongRecommender {
                     spotifyApi.setAccessToken(data.body['access_token']);
                     
                     console.log('getSpotifyApi: Token refreshed successfully', { userId });
-                } catch (error) {
+                } catch (refreshError) {
                     console.error('getSpotifyApi: Error refreshing Spotify token', { 
                         userId, 
-                        error: error.message,
-                        statusCode: error.statusCode
+                        error: refreshError.message,
+                        statusCode: refreshError.statusCode
                     });
                     
                     await this.updateUser(userId, {
                         spotifyAccessToken: null,
-                        spotifyRefreshToken: null,
-                        spotifyTokenExpires: null,
-                        updatedAt: new Date().toISOString()
+                        spotifyRefreshToken: null
                     });
                     
                     throw new Error('Failed to refresh Spotify token. Please re-authenticate with Spotify.');
                 }
-            }
-
-            // Verify token and update profile if needed
-            try {
-                const profile = await spotifyApi.getMe();
-                if (!user.spotifyProfile || !user.spotifyProfile.country) {
-                    const updatedProfile = {
-                        ...user.spotifyProfile,
-                        country: profile.body.country
-                    };
-                    
-                    await this.updateUser(userId, {
-                        spotifyProfile: updatedProfile,
-                        updatedAt: new Date().toISOString()
-                    });
-                }
-            } catch (error) {
-                console.error('getSpotifyApi: Token lacks required scopes or is invalid', {
-                    userId,
-                    error: error.message,
-                    statusCode: error.statusCode
-                });
-                
-                await this.updateUser(userId, {
-                    spotifyAccessToken: null,
-                    spotifyRefreshToken: null,
-                    spotifyTokenExpires: null,
-                    updatedAt: new Date().toISOString()
-                });
-                
-                throw new Error('Spotify token invalid or lacks required scopes. Please re-authenticate with Spotify.');
             }
 
             return spotifyApi;
@@ -283,9 +251,7 @@ class SongRecommender {
                 if (error.statusCode === 403) {
                     await this.updateUser(userId, {
                         spotifyAccessToken: null,
-                        spotifyRefreshToken: null,
-                        spotifyTokenExpires: null,
-                        updatedAt: new Date().toISOString()
+                        spotifyRefreshToken: null
                     });
                     throw new Error('Spotify access denied. Please re-authenticate with Spotify.');
                 }
@@ -341,7 +307,7 @@ class SongRecommender {
             'pt': 'BR', 'ko': 'KR', 'ja': 'JP', 'hi': 'IN', 'ar': 'EG'
         };
 
-        const userCountry = user.spotifyProfile?.country;
+        const userCountry = user.country;
         if (userCountry) return userCountry;
         if (preferences.language && marketMap[preferences.language]) {
             return marketMap[preferences.language];
@@ -369,7 +335,7 @@ class SongRecommender {
             };
 
             if (languageKeywords[language]) {
-                query = `arijit:${language} OR `;
+                query = `${language} OR `;
                 query += languageKeywords[language].join(' OR ');
                 if (genre) query += ` ${genre}`;
                 if (mood) query += ` ${mood}`;
