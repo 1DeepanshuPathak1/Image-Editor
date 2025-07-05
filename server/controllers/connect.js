@@ -1,14 +1,14 @@
-const { User } = require('../models/User');
 const passport = require('passport');
+const redisService = require('../services/redisService');
 
 async function SignUp(req, res) {
     try {
         const { firstName, middleName, lastName, email, password, country } = req.body;
-        const existingUser = await User.findOne({ email });
+        const existingUser = await redisService.findUserByEmail(email);
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
-        const newUser = await User.create({ firstName, middleName, lastName, email, password, country });
+        const newUser = await redisService.createUser({ firstName, middleName, lastName, email, password, country });
 
         res.status(201).json({ message: 'User created successfully' });
     } catch (error) {
@@ -21,18 +21,13 @@ async function SignIn(req, res) {
     const { email, password } = req.body;
 
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
+        const userAuth = await redisService.findUserByEmail(email);
+        if (!userAuth) {
             return res.status(400).json({ message: 'No user found.' });
         }
 
-        const isPasswordValid = await user.comparePassword(password);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: 'Incorrect password.' });
-        }
-
         return new Promise((resolve, reject) => {
-            req.login(user, async (loginErr) => {
+            req.login({ id: userAuth.userId }, async (loginErr) => {
                 if (loginErr) {
                     console.error('Login error:', loginErr);
                     reject(loginErr);
@@ -40,10 +35,9 @@ async function SignIn(req, res) {
                 }
 
                 req.session.user = {
-                    id: user.id,
-                    name: user.firstName,
+                    id: userAuth.userId,
                     provider: 'local',
-                    spotifyConnected: !!user.spotifyAccessToken
+                    spotifyConnected: !!userAuth.spotifyAccessToken
                 };
 
                 await new Promise((resolve, reject) => {
@@ -61,9 +55,8 @@ async function SignIn(req, res) {
                 return res.status(200).json({
                     message: 'Sign in successful!',
                     user: {
-                        id: user.id,
-                        name: user.firstName,
-                        spotifyConnected: !!user.spotifyAccessToken
+                        id: userAuth.userId,
+                        spotifyConnected: !!userAuth.spotifyAccessToken
                     }
                 });
             });
@@ -86,11 +79,12 @@ const GoogleCallback = [
                 return res.redirect(`${process.env.CLIENT_URL}/signin?error=auth_failed`);
             }
 
+            const userAuth = await redisService.getUserAuth(req.user.id);
+
             req.session.user = {
                 id: req.user.id,
-                name: req.user.firstName,
                 provider: 'google',
-                spotifyConnected: !!req.user.spotifyAccessToken
+                spotifyConnected: !!(userAuth && userAuth.spotifyAccessToken)
             };
             
             const redirectTo = req.session.returnTo || '/';
@@ -114,12 +108,13 @@ const GitHubCallback = [
                 console.error('GitHub authentication failed: No user data');
                 return res.redirect(`${process.env.CLIENT_URL}/signin?error=auth_failed`);
             }
+
+            const userAuth = await redisService.getUserAuth(req.user.id);
             
             req.session.user = {
                 id: req.user.id,
-                name: req.user.firstName,
                 provider: 'github',
-                spotifyConnected: !!req.user.spotifyAccessToken
+                spotifyConnected: !!(userAuth && userAuth.spotifyAccessToken)
             };
             
             const redirectTo = req.session.returnTo || '/';
@@ -154,10 +149,10 @@ const SpotifyCallback = [
                 return res.redirect(`${process.env.CLIENT_URL}/signin?error=${errorMessage}`);
             }
 
-            // Update session with Spotify connection status
+            const userAuth = await redisService.getUserAuth(req.user.id);
+
             req.session.user = {
                 id: req.user.id,
-                name: req.user.firstName,
                 provider: req.session.user?.provider || 'local',
                 spotifyConnected: true
             };
@@ -195,16 +190,8 @@ async function SpotifyDisconnect(req, res) {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const user = await User.findById(req.user.id);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+        await redisService.clearSpotifyTokens(req.user.id);
 
-        // Clear Spotify-related fields using the new method
-        user.clearSpotifyData();
-        await user.save();
-
-        // Update session
         if (req.session.user) {
             req.session.user.spotifyConnected = false;
         }
@@ -220,9 +207,12 @@ async function AuthCheck(req, res) {
     try {
         const isAuthenticated = req.isAuthenticated();
         let spotifyConnected = false;
-        if (isAuthenticated && req.user?.spotifyAccessToken) {
-            spotifyConnected = true;
+        
+        if (isAuthenticated && req.user) {
+            const userAuth = await redisService.getUserAuth(req.user.id);
+            spotifyConnected = !!(userAuth && userAuth.spotifyAccessToken);
         }
+        
         return res.json({ isAuthenticated, spotifyConnected });
     } catch (error) {
         console.error('Auth check error:', error);

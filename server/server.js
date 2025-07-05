@@ -12,8 +12,8 @@ const { ResizeImage } = require('./controllers/resizeImage');
 const { enhanceImage } = require('./controllers/UpscaleImage');
 const songRecommender = require('./controllers/songRecommender');
 const setupSongRoutes = require('./routes/songRoutes');
+const redisService = require('./services/redisService');
 const crypto = require('crypto');
-const { User } = require('./models/User'); 
 require('dotenv').config();
 
 // Configure AWS
@@ -68,7 +68,7 @@ app.use(session({
 
 app.use(passport.initialize());
 app.use(passport.session());
-require('./passportConfig');
+require('./services/passportConfig');
 
 // Multer configuration
 const upload = multer({ storage: multer.memoryStorage() });
@@ -149,11 +149,18 @@ app.post('/auth/spotify/disconnect', isAuthenticated, SpotifyDisconnect);
 app.get('/auth/check', AuthCheck);
 app.post('/signout', async (req, res) => {
     try {
+        const userId = req.user?.id;
+        
         req.logout((err) => {
         if (err) {
             console.error('Logout error during Passport logout:', err);
             return res.status(500).json({ message: 'Failed to sign out (Passport logout error)' });
         }
+        
+        if (userId) {
+            redisService.clearUserAuth(userId);
+        }
+        
         if (req.session.user) {
             delete req.session.user;
         }
@@ -179,16 +186,23 @@ app.post('/signout', async (req, res) => {
     }
 });
 
-app.get('/api/user', (req, res) => {
+app.get('/api/user', async (req, res) => {
     if (req.isAuthenticated()) {
         const user = req.user;
+        let spotifyConnected = false;
+        
+        const cachedData = await redisService.getUserAuth(user.id);
+        if (cachedData && cachedData.spotifyAccessToken) {
+            spotifyConnected = true;
+        }
+        
         return res.status(200).json({
             userId: user._id.toString(),
             user: {
                 id: user._id.toString(),
                 email: user.email,
                 name: user.firstName || user.name,
-                spotifyConnected: !!user.spotifyAccessToken
+                spotifyConnected
             }
         });
     } else if (req.session.user) {
@@ -250,12 +264,13 @@ const testDynamoDBConnection = async () => {
 
 // Start server
 let server;
-testDynamoDBConnection()
-    .then((connected) => {
-        if (connected) {
+Promise.all([testDynamoDBConnection(), redisService.connect()])
+    .then(([dynamoConnected, _]) => {
+        if (dynamoConnected) {
             server = app.listen(port, () => {
                 console.log(`Server running on port ${port}`);
                 console.log('Using DynamoDB as the database');
+                console.log('Redis cache initialized');
             });
         } else {
             console.error('Failed to connect to DynamoDB');
@@ -271,6 +286,7 @@ const gracefulShutdown = async () => {
     console.log('Received shutdown signal, starting graceful shutdown...');
     songRecommender.cleanup();
     songRouter.cleanup();
+    await redisService.disconnect();
     if (server) {
         await new Promise(resolve => server.close(resolve));
     }

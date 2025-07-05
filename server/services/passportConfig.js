@@ -3,7 +3,8 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const LocalStrategy = require('passport-local').Strategy;
 const SpotifyStrategy = require('passport-spotify').Strategy;
-const { User } = require('./models/User');
+const { User } = require('../models/User');
+const redisService = require('./redisService');
 require('dotenv').config();
 
 // Serialize/Deserialize User
@@ -28,7 +29,12 @@ passport.use('local', new LocalStrategy({
     passReqToCallback: true
 }, async (req, email, password, done) => {
     try {
-        const user = await User.findOne({ email });
+        const userAuth = await redisService.findUserByEmail(email);
+        if (!userAuth) {
+            return done(null, false, { message: 'No user found.' });
+        }
+
+        const user = await User.findById(userAuth.userId);
         if (!user) {
             return done(null, false, { message: 'No user found.' });
         }
@@ -41,7 +47,7 @@ passport.use('local', new LocalStrategy({
             id: user.id,
             name: user.firstName,
             provider: 'local',
-            spotifyConnected: !!user.spotifyAccessToken
+            spotifyConnected: !!userAuth.spotifyAccessToken
         };
 
         return done(null, user);
@@ -58,16 +64,19 @@ passport.use('google', new GoogleStrategy({
     callbackURL: "http://localhost:3000/auth/google/callback"
 }, async (_accessToken, _refreshToken, profile, done) => {
     try {
-        let user = await User.findOne({ googleId: profile.id });
-        if (user) {
+        let userAuth = await redisService.findUserByGoogleId(profile.id);
+        if (userAuth) {
+            const user = await User.findById(userAuth.userId);
             return done(null, user);
         }
-        user = await User.create({
+        
+        const user = await redisService.createUser({
             googleId: profile.id,
             firstName: profile.name.givenName,
             lastName: profile.name.familyName,
-            country: 'US' // Default country
+            country: profile.country || 'US'
         });
+        
         return done(null, user);
     } catch (error) {
         console.error('Google strategy error:', error);
@@ -83,17 +92,19 @@ passport.use('github', new GitHubStrategy({
     scope: ['user:email']
 }, async (_accessToken, _refreshToken, profile, done) => {
     try {
-        let user = await User.findOne({ githubId: profile.id });
-        if (user) {
+        let userAuth = await redisService.findUserByGithubId(profile.id);
+        if (userAuth) {
+            const user = await User.findById(userAuth.userId);
             return done(null, user);
         }
 
-        user = await User.create({
+        const user = await redisService.createUser({
             githubId: profile.id,
             firstName: profile.displayName || profile.username,
             lastName: '',
-            country: 'US' // Default country
+            country: profile.country || 'US'
         });
+        
         return done(null, user);
     } catch (error) {
         console.error('GitHub strategy error:', error);
@@ -120,33 +131,22 @@ passport.use('spotify', new SpotifyStrategy({
     try {
         // If user is already authenticated, connect Spotify to their existing account
         if (req.isAuthenticated() && req.user) {
+            await redisService.updateUserSpotifyData(req.user.id, profile.id, accessToken, refreshToken, profile.country);
             const user = await User.findById(req.user.id);
-            if (!user) {
-                console.error('Spotify OAuth: Authenticated user not found in DB', { userId: req.user.id });
-                return done(null, false, { message: 'User not found' });
-            }
-            user.spotifyId = profile.id;
-            user.spotifyAccessToken = accessToken;
-            user.spotifyRefreshToken = refreshToken;
-            user.country = profile.country || 'US';
-            await user.save();
             return done(null, user);
         }
 
         // If not authenticated, find or create user by Spotify ID
-        let user = await User.findOne({ spotifyId: profile.id });
+        let userAuth = await redisService.findUserBySpotifyId(profile.id);
 
-        if (user) {
-            user.spotifyId = profile.id;
-            user.spotifyAccessToken = accessToken;
-            user.spotifyRefreshToken = refreshToken;
-            user.country = profile.country || 'US';
-            await user.save();
+        if (userAuth) {
+            await redisService.updateSpotifyTokens(userAuth.userId, accessToken, refreshToken);
+            const user = await User.findById(userAuth.userId);
             return done(null, user);
         }
 
         // Create new user with Spotify data
-        user = await User.create({
+        const user = await redisService.createUser({
             spotifyId: profile.id,
             firstName: profile.displayName || 'Spotify User',
             lastName: '',
@@ -154,6 +154,7 @@ passport.use('spotify', new SpotifyStrategy({
             spotifyAccessToken: accessToken,
             spotifyRefreshToken: refreshToken
         });
+        
         return done(null, user);
     } catch (error) {
         console.error('Spotify strategy error:', {

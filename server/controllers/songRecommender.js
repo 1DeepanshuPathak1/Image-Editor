@@ -3,6 +3,7 @@ const SpotifyWebApi = require('spotify-web-api-node');
 const { spawn } = require('child_process');
 const path = require('path');
 const SongRecommendationSystem = require('./SongRecommendationUtils');
+const redisService = require('../services/redisService');
 require('dotenv').config();
 
 // Configure AWS DynamoDB
@@ -22,14 +23,17 @@ class SongRecommender {
 
     // DynamoDB User Operations
     async findUserById(userId) {
-        const params = {
-            TableName: 'Users',
-            Key: { id: userId }
-        };
-
         try {
-            const result = await dynamodb.get(params).promise();
-            return result.Item || null;
+            const cachedUser = await redisService.getUserAuth(userId);
+            if (cachedUser) {
+                return {
+                    id: cachedUser.userId,
+                    spotifyAccessToken: cachedUser.spotifyAccessToken,
+                    spotifyRefreshToken: cachedUser.spotifyRefreshToken
+                };
+            }
+
+            return null;
         } catch (error) {
             console.error('Error finding user by ID:', error);
             throw error;
@@ -37,29 +41,37 @@ class SongRecommender {
     }
 
     async updateUser(userId, updateData) {
-        const updateExpression = [];
-        const expressionAttributeNames = {};
-        const expressionAttributeValues = {};
-
-        Object.keys(updateData).forEach((key, index) => {
-            const attributeName = `#attr${index}`;
-            const attributeValue = `:val${index}`;
-            
-            updateExpression.push(`${attributeName} = ${attributeValue}`);
-            expressionAttributeNames[attributeName] = key;
-            expressionAttributeValues[attributeValue] = updateData[key];
-        });
-
-        const params = {
-            TableName: 'Users',
-            Key: { id: userId },
-            UpdateExpression: `SET ${updateExpression.join(', ')}`,
-            ExpressionAttributeNames: expressionAttributeNames,
-            ExpressionAttributeValues: expressionAttributeValues,
-            ReturnValues: 'ALL_NEW'
-        };
-
         try {
+            if (updateData.spotifyAccessToken !== undefined || updateData.spotifyRefreshToken !== undefined) {
+                await redisService.updateSpotifyTokens(
+                    userId,
+                    updateData.spotifyAccessToken,
+                    updateData.spotifyRefreshToken
+                );
+            }
+
+            const updateExpression = [];
+            const expressionAttributeNames = {};
+            const expressionAttributeValues = {};
+
+            Object.keys(updateData).forEach((key, index) => {
+                const attributeName = `#attr${index}`;
+                const attributeValue = `:val${index}`;
+                
+                updateExpression.push(`${attributeName} = ${attributeValue}`);
+                expressionAttributeNames[attributeName] = key;
+                expressionAttributeValues[attributeValue] = updateData[key];
+            });
+
+            const params = {
+                TableName: 'Users',
+                Key: { id: userId },
+                UpdateExpression: `SET ${updateExpression.join(', ')}`,
+                ExpressionAttributeNames: expressionAttributeNames,
+                ExpressionAttributeValues: expressionAttributeValues,
+                ReturnValues: 'ALL_NEW'
+            };
+
             const result = await dynamodb.update(params).promise();
             return result.Attributes;
         } catch (error) {
