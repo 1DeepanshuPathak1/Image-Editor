@@ -14,8 +14,13 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
     try {
-        const user = await User.findById(id);
-        done(null, user);
+        const userAuth = await redisService.getUserAuth(id);
+        if (userAuth) {
+            const user = await User.findById(id);
+            done(null, user);
+        } else {
+            done(null, null);
+        }
     } catch (error) {
         console.error('Deserialize error:', error);
         done(error, null);

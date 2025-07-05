@@ -152,33 +152,34 @@ app.post('/signout', async (req, res) => {
         const userId = req.user?.id;
         
         req.logout((err) => {
-        if (err) {
-            console.error('Logout error during Passport logout:', err);
-            return res.status(500).json({ message: 'Failed to sign out (Passport logout error)' });
-        }
-        
-        if (userId) {
-            redisService.clearUserAuth(userId);
-        }
-        
-        if (req.session.user) {
-            delete req.session.user;
-        }
-        if (req.session.spotifyState) {
-            delete req.session.spotifyState;
-        }
-        if (req.session.returnTo) {
-            delete req.session.returnTo;
-        }
-        req.session.destroy((err) => {
             if (err) {
-                console.error('Session destroy error:', err);
-                return res.status(500).json({ message: 'Failed to destroy session' });
+                console.error('Logout error during Passport logout:', err);
+                return res.status(500).json({ message: 'Failed to sign out (Passport logout error)' });
             }
-            res.clearCookie('connect.sid', { path: '/' });
-            res.clearCookie('spotify_auth_state', { path: '/' });
-            res.status(200).json({ message: 'Signed out successfully' });
-        });
+            
+            // Clear Redis cache for the user
+            if (userId) {
+                redisService.clearUserCache(userId);
+            }
+            
+            if (req.session.user) {
+                delete req.session.user;
+            }
+            if (req.session.spotifyState) {
+                delete req.session.spotifyState;
+            }
+            if (req.session.returnTo) {
+                delete req.session.returnTo;
+            }
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('Session destroy error:', err);
+                    return res.status(500).json({ message: 'Failed to destroy session' });
+                }
+                res.clearCookie('connect.sid', { path: '/' });
+                res.clearCookie('spotify_auth_state', { path: '/' });
+                res.status(200).json({ message: 'Signed out successfully' });
+            });
         });
     } catch (error) {
         console.error('Signout error:', error);
