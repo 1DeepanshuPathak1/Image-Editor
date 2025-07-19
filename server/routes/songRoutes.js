@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const songRecommender = require('../controllers/songRecommender');
-const { UserMusicPreferences } = require('../models/UserMusic');
+const redisUserPreferencesService = require('../services/redisPreferencesService');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -24,18 +24,6 @@ router.post('/save-song', upload.single('image'), async (req, res) => {
             return res.status(400).json({ error: 'Song ID and image are required' });
         }
 
-        let preferences = await UserMusicPreferences.findByUserId(userId);
-        if (!preferences) {
-            preferences = await UserMusicPreferences.create({ 
-                userId,
-                likedArtists: [],
-                dislikedArtists: [],
-                likedSongs: [],
-                dislikedSongs: [],
-                savedSongs: []
-            });
-        }
-
         const parsedSongData = typeof songData === 'string' ? JSON.parse(songData) : songData;
 
         const uri = parsedSongData.uri || `spotify:track:${songId}`;
@@ -53,33 +41,17 @@ router.post('/save-song', upload.single('image'), async (req, res) => {
             uri,
             album_art: parsedSongData.album_art || '/default-album-art.jpg',
             external_url: parsedSongData.external_url,
-            popularity: parsedSongData.popularity || 0,
-            image: req.file.buffer,
-            imageType: req.file.mimetype,
-            timestamp: new Date().toISOString()
+            popularity: parsedSongData.popularity || 0
         };
 
-        if (!preferences.savedSongs) {
-            preferences.savedSongs = [];
-        }
-        
-        preferences.savedSongs = preferences.savedSongs.filter(s => s.songId !== songId);
-        preferences.savedSongs.push(songEntry);
+        await redisUserPreferencesService.addSavedSong(userId, songEntry, req.file.buffer, req.file.mimetype);
 
-        await preferences.save();
-
-        const responsePreferences = {
-            ...preferences,
-            savedSongs: preferences.savedSongs.map(song => ({
-                ...song,
-                image: song.image ? `data:${song.imageType};base64,${song.image.toString('base64')}` : null
-            }))
-        };
+        const preferences = await redisUserPreferencesService.getUserPreferences(userId);
 
         res.status(200).json({
             success: true,
             message: 'Song saved successfully',
-            preferences: responsePreferences
+            preferences
         });
     } catch (error) {
         console.error('Error saving song:', error);
@@ -98,20 +70,8 @@ router.delete('/saved/:userId/:songId', async (req, res) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findByUserId(userId);
-        if (!preferences) {
-            return res.status(404).json({ error: 'User preferences not found' });
-        }
+        await redisUserPreferencesService.removeSavedSong(userId, songId);
 
-        if (!preferences.savedSongs) {
-            preferences.savedSongs = [];
-        }
-
-        preferences.savedSongs = preferences.savedSongs.filter(song => 
-            song.songId !== songId && song.uri?.split(':')[2] !== songId
-        );
-
-        await preferences.save();
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error deleting saved song:', error);
@@ -127,19 +87,8 @@ router.delete('/history/:userId/:songId', async (req, res) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findByUserId(userId);
-        if (!preferences) {
-            return res.status(404).json({ error: 'User preferences not found' });
-        }
+        await redisUserPreferencesService.removeFromHistory(userId, songId);
 
-        preferences.likedSongs = preferences.likedSongs.filter(song => 
-            song.songId !== songId && song.uri?.split(':')[2] !== songId
-        );
-        preferences.dislikedSongs = preferences.dislikedSongs.filter(song => 
-            song.songId !== songId && song.uri?.split(':')[2] !== songId
-        );
-
-        await preferences.save();
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error deleting item:', error);
@@ -155,19 +104,8 @@ router.delete('/preferences/:userId/artist/:artistId', async (req, res) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        const preferences = await UserMusicPreferences.findByUserId(userId);
-        if (!preferences) {
-            return res.status(404).json({ error: 'User preferences not found' });
-        }
+        await redisUserPreferencesService.removeArtist(userId, artistId);
 
-        preferences.likedArtists = preferences.likedArtists.filter(artist => 
-            artist.artistId !== artistId
-        );
-        preferences.dislikedArtists = preferences.dislikedArtists.filter(artist => 
-            artist.artistId !== artistId
-        );
-
-        await preferences.save();
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error removing artist:', error);
@@ -203,37 +141,9 @@ router.get('/preferences/:userId', async (req, res) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
-        let preferences = await UserMusicPreferences.findByUserId(userId);
-        if (!preferences) {
-            preferences = await UserMusicPreferences.create({
-                userId,
-                likedSongs: [],
-                dislikedSongs: [],
-                likedArtists: [],
-                dislikedArtists: [],
-                savedSongs: []
-            });
-        }
+        const preferences = await redisUserPreferencesService.getUserPreferences(userId);
 
-        const responsePreferences = {
-            ...preferences,
-            savedSongs: preferences.savedSongs.map(song => ({
-                songId: song.songId,
-                name: song.name || 'Unknown Track',
-                artist: song.artist || 'Unknown Artist',
-                artistId: song.artistId,
-                genre: song.genre || '',
-                mood: song.mood,
-                uri: song.uri,
-                album_art: song.album_art || '/default-album-art.jpg',
-                external_url: song.external_url || '',
-                popularity: song.popularity || 0,
-                image: song.image ? `data:${song.imageType};base64,${song.image.toString('base64')}` : null,
-                timestamp: song.timestamp
-            }))
-        };
-
-        res.json(responsePreferences);
+        res.json(preferences);
     } catch (error) {
         console.error('Error fetching user preferences:', error);
         res.status(500).json({ error: 'Failed to fetch user preferences' });
@@ -252,11 +162,6 @@ router.post('/feedback', async (req, res) => {
             return res.status(400).json({ error: 'Missing required parameters' });
         }
 
-        let preferences = await UserMusicPreferences.findByUserId(userId);
-        if (!preferences) {
-            preferences = await UserMusicPreferences.create({ userId });
-        }
-
         const genre = Array.isArray(songData.genres) ? 
             songData.genres[0] || '' : 
             songData.genre || '';
@@ -272,59 +177,30 @@ router.post('/feedback', async (req, res) => {
                 uri: songData.uri,
                 album_art: songData.album_art || '/default-album-art.jpg',
                 external_url: songData.external_url || '',
-                popularity: songData.popularity || 0,
-                timestamp: new Date().toISOString()
+                popularity: songData.popularity || 0
             };
 
             if (type === 'like') {
-                preferences.dislikedSongs = preferences.dislikedSongs.filter(s => s.songId !== songId);
-                if (!preferences.likedSongs.some(s => s.songId === songId)) {
-                    preferences.likedSongs.push(songEntry);
-                } else {
-                    preferences.likedSongs = preferences.likedSongs.map(s => 
-                        s.songId === songId ? { ...s, ...songEntry } : s
-                    );
-                }
+                await redisUserPreferencesService.addLikedSong(userId, songEntry);
             } else {
-                preferences.likedSongs = preferences.likedSongs.filter(s => s.songId !== songId);
-                if (!preferences.dislikedSongs.some(s => s.songId === songId)) {
-                    preferences.dislikedSongs.push(songEntry);
-                } else {
-                    preferences.dislikedSongs = preferences.dislikedSongs.map(s => 
-                        s.songId === songId ? { ...s, ...songEntry } : s
-                    );
-                }
+                await redisUserPreferencesService.addDislikedSong(userId, songEntry);
             }
         } else if (scope === 'artist') {
             const artistEntry = {
                 artistId,
                 name: songData.artist || 'Unknown Artist',
-                genre,
-                timestamp: new Date().toISOString()
+                genre
             };
 
             if (type === 'like') {
-                preferences.dislikedArtists = preferences.dislikedArtists.filter(a => a.artistId !== artistId);
-                if (!preferences.likedArtists.some(a => a.artistId === artistId)) {
-                    preferences.likedArtists.push(artistEntry);
-                } else {
-                    preferences.likedArtists = preferences.likedArtists.map(a => 
-                        a.artistId === artistId ? { ...a, ...artistEntry } : a
-                    );
-                }
+                await redisUserPreferencesService.addLikedArtist(userId, artistEntry);
             } else {
-                preferences.likedArtists = preferences.likedArtists.filter(a => a.artistId !== artistId);
-                if (!preferences.dislikedArtists.some(a => a.artistId === artistId)) {
-                    preferences.dislikedArtists.push(artistEntry);
-                } else {
-                    preferences.dislikedArtists = preferences.dislikedArtists.map(a => 
-                        a.artistId === artistId ? { ...a, ...artistEntry } : a
-                    );
-                }
+                await redisUserPreferencesService.addDislikedArtist(userId, artistEntry);
             }
         }
 
-        await preferences.save();
+        const preferences = await redisUserPreferencesService.getUserPreferences(userId);
+
         res.status(200).json({
             success: true,
             message: `Successfully recorded ${type} feedback for ${scope}`,
@@ -393,7 +269,7 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
         }
 
         if (userId && isValidUserId(userId)) {
-            const userPrefs = await UserMusicPreferences.findByUserId(userId);
+            const userPrefs = await redisUserPreferencesService.getUserPreferences(userId);
             if (userPrefs) {
                 preferences.likedSongs = userPrefs.likedSongs || [];
                 preferences.dislikedSongs = userPrefs.dislikedSongs || [];

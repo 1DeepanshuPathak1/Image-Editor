@@ -235,43 +235,45 @@ class RedisService {
     }
 
     async _updateCacheData(userId, spotifyAccessToken, spotifyRefreshToken, extraData = {}) {
-        if (!this.isConnected || !this.client) {
-            const user = await User.findById(userId);
-            if (user) {
-                user.spotifyAccessToken = spotifyAccessToken;
-                user.spotifyRefreshToken = spotifyRefreshToken;
-                if (extraData.spotifyId) user.spotifyId = extraData.spotifyId;
-                if (extraData.country) user.country = extraData.country;
-                if (spotifyAccessToken === null && spotifyRefreshToken === null) {
-                    user.clearSpotifyData();
-                }
-                await user.save();
+    if (!this.isConnected || !this.client) {
+        const user = await User.findById(userId);
+        if (user) {
+            user.spotifyAccessToken = spotifyAccessToken;
+            user.spotifyRefreshToken = spotifyRefreshToken;
+            if (extraData.spotifyId) user.spotifyId = extraData.spotifyId;
+            if (extraData.country) user.country = extraData.country;
+            if (spotifyAccessToken === null && spotifyRefreshToken === null) {
+                user.clearSpotifyData();
             }
-            return;
+            await user.save();
         }
-
-        try {
-            const userKey = `user:${userId}`;
-            const cachedData = await this.client.get(userKey);
-            
-            let userData;
-            if (cachedData) {
-                userData = JSON.parse(cachedData);
-            } else {
-                userData = { userId, valid: true };
-            }
-
-            userData.spotifyAccessToken = spotifyAccessToken;
-            userData.spotifyRefreshToken = spotifyRefreshToken;
-            userData.dirty = true;
-            if (extraData.spotifyId) userData.spotifyId = extraData.spotifyId;
-            if (extraData.country) userData.country = extraData.country;
-
-            await this.client.setEx(userKey, 86400, JSON.stringify(userData));
-        } catch (error) {
-            console.error('Redis _updateCacheData error:', error);
-        }
+        return;
     }
+
+    try {
+        const userKey = `user:${userId}`;
+        const cachedData = await this.client.get(userKey);
+        
+        let userData;
+        if (cachedData) {
+            userData = JSON.parse(cachedData);
+        } else {
+            userData = { userId, valid: true };
+        }
+
+        userData.spotifyAccessToken = spotifyAccessToken;
+        if (spotifyRefreshToken !== undefined) {
+            userData.spotifyRefreshToken = spotifyRefreshToken;
+        }
+        userData.dirty = true;
+        if (extraData.spotifyId) userData.spotifyId = extraData.spotifyId;
+        if (extraData.country) userData.country = extraData.country;
+
+        await this.client.setEx(userKey, 86400, JSON.stringify(userData));
+    } catch (error) {
+        console.error('Redis _updateCacheData error:', error);
+    }
+}
 
     async disconnect() {
         if (this.client) {

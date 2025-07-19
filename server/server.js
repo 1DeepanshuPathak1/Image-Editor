@@ -13,6 +13,7 @@ const { enhanceImage } = require('./controllers/UpscaleImage');
 const songRecommender = require('./controllers/songRecommender');
 const setupSongRoutes = require('./routes/songRoutes');
 const redisService = require('./services/redisService');
+const redisPreferencesService = require('./services/redisPreferencesService');
 const crypto = require('crypto');
 require('dotenv').config();
 
@@ -160,6 +161,7 @@ app.post('/signout', async (req, res) => {
             // Clear Redis cache for the user
             if (userId) {
                 redisService.clearUserCache(userId);
+                redisPreferencesService.clearUserPreferencesCache(userId);
             }
             
             if (req.session.user) {
@@ -265,13 +267,14 @@ const testDynamoDBConnection = async () => {
 
 // Start server
 let server;
-Promise.all([testDynamoDBConnection(), redisService.connect()])
-    .then(([dynamoConnected, _]) => {
+Promise.all([testDynamoDBConnection(), redisService.connect(), redisPreferencesService.connect()])
+    .then(([dynamoConnected, _, __]) => {
         if (dynamoConnected) {
             server = app.listen(port, () => {
                 console.log(`Server running on port ${port}`);
                 console.log('Using DynamoDB as the database');
                 console.log('Redis cache initialized');
+                console.log('Redis preferences cache initialized');
             });
         } else {
             console.error('Failed to connect to DynamoDB');
@@ -288,6 +291,7 @@ const gracefulShutdown = async () => {
     songRecommender.cleanup();
     songRouter.cleanup();
     await redisService.disconnect();
+    await redisPreferencesService.disconnect();
     if (server) {
         await new Promise(resolve => server.close(resolve));
     }
