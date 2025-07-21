@@ -120,7 +120,7 @@ router.get('/artist/:artistId', async (req, res) => {
 
         await songRecommender.initialized;
         
-        const artistData = await songRecommender.getArtistInfo(artistId, userId);
+        const artistData = await songRecommender.spotifyOps.getArtistInfo(artistId, userId);
         
         if (!artistData) {
             return res.status(404).json({ error: 'Artist not found' });
@@ -222,7 +222,7 @@ router.get('/search-artists', async (req, res) => {
             return res.status(400).json({ error: 'Search query is required' });
         }
 
-        const artists = await songRecommender.searchArtists(q, userId);
+        const artists = await songRecommender.spotifyOps.searchArtists(q, userId);
         res.json({ artists });
     } catch (error) {
         console.error('Error searching artists:', error);
@@ -278,13 +278,13 @@ router.post('/recommend-song', upload.single('image'), async (req, res) => {
             }
         }
 
-        const imageAnalysis = await songRecommender.analyzeImage(req.file.buffer);
+        const imageAnalysis = await songRecommender.imageAnalysis.analyzeImage(req.file.buffer);
 
         if (!imageAnalysis) {
             return res.status(500).json({ error: 'Failed to analyze image' });
         }
 
-        const description = songRecommender.generateDescription(imageAnalysis);
+        const description = songRecommender.imageAnalysis.generateDescription(imageAnalysis);
         preferences.previouslySuggested = Array.from(req.app.locals.suggestedSongs);
         const recommendations = await songRecommender.getSongRecommendation(
             imageAnalysis,
