@@ -24,7 +24,7 @@ function App() {
     const checkAuth = async () => {
         try {
             setIsAuthLoading(true);
-            const response = await fetch('http://localhost:3000/auth/check', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/auth/check`, {
                 credentials: 'include'
             });
             

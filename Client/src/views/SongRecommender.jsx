@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, X, Share2, Loader, RefreshCw } from 'lucide-react';
 import '../css/SongRecommender.css';
 import FeedbackTabs from '../Components/SongRecComp/FeedbackTabs';
@@ -30,7 +30,7 @@ const SongRecommenderPage = () => {
     useEffect(() => {
         const fetchUserId = async () => {
             try {
-                const response = await fetch('http://localhost:3000/api/user', {
+                const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/user`, {
                     method: 'GET',
                     credentials: 'include',
                     headers: {
@@ -88,7 +88,7 @@ const SongRecommenderPage = () => {
                     return;
                 }
 
-                const response = await fetch(`http://localhost:3000/api/songs/preferences/${userId}`, {
+                const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/preferences/${userId}`, {
                     credentials: 'include'
                 });
                 if (!response.ok) {

@@ -362,5 +362,6 @@ function setupSongRoutes() {
 
     return router;
 }
+const songRouter = setupSongRoutes();
 
-module.exports = setupSongRoutes;
+module.exports = songRouter;

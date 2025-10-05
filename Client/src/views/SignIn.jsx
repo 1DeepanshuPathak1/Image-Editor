@@ -16,7 +16,7 @@ function SignIn({ setIsSignedIn }) {
 
     const checkAuthStatus = async () => {
         try {
-            const response = await fetch('http://localhost:3000/auth/check', {
+                        const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/auth/check`, {
                 method: 'GET',
                 credentials: 'include'
             });
@@ -61,7 +61,7 @@ function SignIn({ setIsSignedIn }) {
         console.log(`Attempting to sign in with email: ${formData.email}`);
 
         try {
-            const response = await fetch('http://localhost:3000/signin', {
+                        const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/signin`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -85,13 +85,13 @@ function SignIn({ setIsSignedIn }) {
     const handleGoogleLogin = () => {
         const returnPath = location.state?.from || '/';
         localStorage.setItem('returnTo', returnPath);
-        window.location.href = `http://localhost:3000/auth/google?returnTo=${encodeURIComponent(returnPath)}`;
+                window.location.href = `${import.meta.env.VITE_SERVER_URL}/auth/google?returnTo=${encodeURIComponent(returnPath)}`;
     };
     
     const handleGithubLogin = () => {
         const returnPath = location.state?.from || '/';
         localStorage.setItem('returnTo', returnPath);
-        window.location.href = `http://localhost:3000/auth/github?returnTo=${encodeURIComponent(returnPath)}`;
+                window.location.href = `${import.meta.env.VITE_SERVER_URL}/auth/github?returnTo=${encodeURIComponent(returnPath)}`;
     };
 
     const redirectMessages = {

@@ -54,8 +54,8 @@ const RecommendationItem = ({ item, onDelete, tabType, userId }) => {
     
     try {
       const endpoint = tabType === 'saved' 
-        ? `http://localhost:3000/api/songs/saved/${userId}/${songId}`
-        : `http://localhost:3000/api/songs/history/${userId}/${songId}`;
+        ? `${import.meta.env.VITE_SERVER_URL}/api/songs/saved/${userId}/${songId}`
+        : `${import.meta.env.VITE_SERVER_URL}/api/songs/history/${userId}/${songId}`;
       
       const response = await fetch(endpoint, {
         method: 'DELETE',

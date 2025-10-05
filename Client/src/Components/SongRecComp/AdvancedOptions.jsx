@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import  { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, Loader } from 'lucide-react';
 import './css/ArtistSearch.css';
 
@@ -78,7 +78,7 @@ export const ArtistSearch = ({ onSelect }) => {
             }
             setLoading(true);
             try {
-                const response = await fetch(`http://localhost:3000/api/songs/search-artists?q=${query}`);
+                const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/search-artists?q=${query}`);
                 const data = await response.json();
                 setArtists(data.artists);
             } catch (error) {

@@ -1,4 +1,3 @@
-const passport = require('passport');
 const redisService = require('../services/redisService');
 
 async function SignUp(req, res) {
@@ -67,123 +66,6 @@ async function SignIn(req, res) {
     }
 }
 
-const GoogleCallback = [
-    passport.authenticate('google', {
-        failureRedirect: '/signin',
-        session: true
-    }),
-    async (req, res) => {
-        try {
-            if (!req.user) {
-                console.error('Google authentication failed: No user data');
-                return res.redirect(`${process.env.CLIENT_URL}/signin?error=auth_failed`);
-            }
-
-            const userAuth = await redisService.getUserAuth(req.user.id);
-
-            req.session.user = {
-                id: req.user.id,
-                provider: 'google',
-                spotifyConnected: !!(userAuth && userAuth.spotifyAccessToken)
-            };
-            
-            const redirectTo = req.session.returnTo || '/';
-            delete req.session.returnTo;
-            res.redirect(`${process.env.CLIENT_URL}${redirectTo}`);
-        } catch (error) {
-            console.error('Google OAuth Error:', error);
-            res.redirect(`${process.env.CLIENT_URL}/signin?error=server_error`);
-        }
-    }
-];
-
-const GitHubCallback = [
-    passport.authenticate('github', {
-        failureRedirect: '/signin',
-        session: true
-    }),
-    async (req, res) => {
-        try {
-            if (!req.user) {
-                console.error('GitHub authentication failed: No user data');
-                return res.redirect(`${process.env.CLIENT_URL}/signin?error=auth_failed`);
-            }
-
-            const userAuth = await redisService.getUserAuth(req.user.id);
-            
-            req.session.user = {
-                id: req.user.id,
-                provider: 'github',
-                spotifyConnected: !!(userAuth && userAuth.spotifyAccessToken)
-            };
-            
-            const redirectTo = req.session.returnTo || '/';
-            delete req.session.returnTo;
-            res.redirect(`${process.env.CLIENT_URL}${redirectTo}`);
-        } catch (error) {
-            console.error('GitHub OAuth Error:', error);
-            res.redirect(`${process.env.CLIENT_URL}/signin?error=server_error`);
-        }
-    }
-];
-
-const SpotifyCallback = [
-    passport.authenticate('spotify', {
-        failureRedirect: `${process.env.CLIENT_URL}/signin?error=spotify_auth_failed`,
-        failureMessage: true,
-        session: true
-    }),
-    async (req, res) => {
-        try {
-            if (!req.user) {
-                const failureMessage = req.session.messages?.[0] || 'No user data received';
-                console.error('Spotify authentication failed:', {
-                    failureMessage,
-                    session: req.session,
-                    headers: req.headers
-                });
-                delete req.session.messages;
-                const errorMessage = typeof failureMessage === 'string' && failureMessage.includes('non-Premium') 
-                    ? 'spotify_non_premium' 
-                    : failureMessage.message || 'spotify_auth_failed';
-                return res.redirect(`${process.env.CLIENT_URL}/signin?error=${errorMessage}`);
-            }
-
-            const userAuth = await redisService.getUserAuth(req.user.id);
-
-            req.session.user = {
-                id: req.user.id,
-                provider: req.session.user?.provider || 'local',
-                spotifyConnected: true
-            };
-
-            await new Promise((resolve, reject) => {
-                req.session.save((err) => {
-                    if (err) {
-                        console.error('SpotifyCallback: Session save error:', err);
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-
-            const redirectTo = req.session.returnTo || '/song-recommender';
-            delete req.session.returnTo;
-            res.redirect(`${process.env.CLIENT_URL}${redirectTo}?spotifyCallback=true`);
-        } catch (error) {
-            console.error('Spotify OAuth Error:', {
-                error: error.message,
-                stack: error.stack,
-                user: req.user,
-                session: req.session
-            });
-            const errorMessage = error.message.includes('non-Premium') ? 'spotify_non_premium' : 'server_error';
-            res.redirect(`${process.env.CLIENT_URL}/signin?error=${errorMessage}`);
-        }
-    }
-];
-
 async function SpotifyDisconnect(req, res) {
     try {
         if (!req.isAuthenticated() || !req.user) {
@@ -231,4 +113,4 @@ function isAuthenticated(req, res, next) {
     res.status(401).json({ error: 'Unauthorized' });
 }
 
-module.exports = { SignUp, SignIn, GoogleCallback, GitHubCallback, SpotifyCallback, SpotifyDisconnect, AuthCheck, isAuthenticated };
+module.exports = { SignUp, SignIn, SpotifyDisconnect, AuthCheck, isAuthenticated };

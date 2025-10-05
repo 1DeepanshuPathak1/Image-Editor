@@ -30,7 +30,7 @@ function EditPage() {
 
         try {
             const { image, id, message } = await (
-                await fetch('http://localhost:3000/upload', { method: 'POST', body: formData })
+                await fetch(`${import.meta.env.VITE_SERVER_URL}/upload`, { method: 'POST', body: formData })
             ).json();
             setImageUrl(`data:image/png;base64,${image}`);
             setImageId(id);
@@ -53,7 +53,7 @@ function EditPage() {
             }
 
             const response = await fetch(
-                `http://localhost:3000/edit/${selectedFilterType}?id=${imageId}&rotation=${rotationParam}&intensity=${sliderValue}`
+                `${import.meta.env.VITE_SERVER_URL}/edit/${selectedFilterType}?id=${imageId}&rotation=${rotationParam}&intensity=${sliderValue}`
             );
             if (!response.ok) throw new Error('Error editing image');
 
@@ -111,7 +111,7 @@ function EditPage() {
                 formData.append('image', blob, 'saved_image.png');
 
                 const { id } = await (
-                    await fetch('http://localhost:3000/upload', { method: 'POST', body: formData })
+                    await fetch(`${import.meta.env.VITE_SERVER_URL}/upload`, { method: 'POST', body: formData })
                 ).json();
                 setTempOriginalImage(imageToSave);
                 setMessage('Image saved successfully!');

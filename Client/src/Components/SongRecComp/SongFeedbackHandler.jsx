@@ -33,7 +33,7 @@ const SongFeedbackHandler = ({
                 mood: imageAnalysis?.mood
             };
 
-            const response = await fetch('http://localhost:3000/api/songs/feedback', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/feedback`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -152,7 +152,7 @@ const SongFeedbackHandler = ({
                 mood: imageAnalysis?.mood
             }));
 
-            const response = await fetch('http://localhost:3000/api/songs/save-song', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/save-song`, {
                 method: 'POST',
                 body: formData
             });

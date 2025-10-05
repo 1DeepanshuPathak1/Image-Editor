@@ -11,9 +11,9 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme, isSp
     const [showSpotifyDisconnectDialog, setShowSpotifyDisconnectDialog] = useState(false);
     const { showToast,ToastContainer } = useSonner();
 
-    const checkAuthStatus = async () => {
+    const checkAuthStatus = async () => { 
         try {
-            const response = await fetch('http://localhost:3000/auth/check', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/auth/check`, {
                 credentials: 'include'
             });
             
@@ -62,7 +62,7 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme, isSp
 
     const handleSignOutConfirm = async () => {
         try {
-            const response = await fetch('http://localhost:3000/signout', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/signout`, {
                 method: 'POST',
                 credentials: 'include'
             });
@@ -93,7 +93,7 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme, isSp
         }
 
         try {
-            const response = await fetch('http://localhost:3000/auth/spotify?returnTo=/song-recommender', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/auth/spotify?returnTo=/song-recommender`, {
                 credentials: 'include'
             });
 
@@ -115,7 +115,7 @@ function Menu({ isOpen, toggleMenu, isSignedIn, setIsSignedIn, toggleTheme, isSp
 
     const handleSpotifyDisconnectConfirm = async () => {
         try {
-            const response = await fetch('http://localhost:3000/auth/spotify/disconnect', {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/auth/spotify/disconnect`, {
                 method: 'POST',
                 credentials: 'include'
             });

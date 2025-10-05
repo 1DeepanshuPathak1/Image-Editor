@@ -6,23 +6,25 @@ const session = require('express-session');
 const SpotifyWebApi = require('spotify-web-api-node');
 const AWS = require('aws-sdk');
 const DynamoDBStore = require('connect-dynamodb')({ session: session });
-const { SignUp, SignIn, GoogleCallback, GitHubCallback, SpotifyCallback, SpotifyDisconnect, AuthCheck, isAuthenticated } = require('./controllers/connect');
+const { SignUp, SignIn, SpotifyDisconnect, AuthCheck, isAuthenticated } = require('./controllers/connect');
 const { FilterRequest, UploadPost } = require('./controllers/Getrequests');
 const { ResizeImage } = require('./controllers/resizeImage');
 const { enhanceImage } = require('./controllers/UpscaleImage');
 const songRecommender = require('./controllers/songRecommender');
-const setupSongRoutes = require('./routes/songRoutes');
+const songRouter = require('./routes/songRoutes');
 const redisService = require('./services/redisService');
 const redisPreferencesService = require('./services/redisPreferencesService');
 const crypto = require('crypto');
 require('dotenv').config();
 
-// Configure AWS
-AWS.config.update({
+const AWSCONFIG = {
     region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-});
+}
+
+// Configure AWS
+AWS.config.update(AWSCONFIG);
 
 // Express app initialization
 const app = express();
@@ -30,7 +32,7 @@ const port = process.env.PORT || 3000;
 
 // Middleware configuration
 const corsOptions = {
-    origin: process.env.CLIENT_URL || 'http://localhost:3001',
+    origin: process.env.CLIENT_URL,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
@@ -46,11 +48,7 @@ app.use(express.urlencoded({ extended: true }));
 // DynamoDB session store configuration
 const dynamoDBStore = new DynamoDBStore({
     table: 'Sessions',
-    AWSConfigJSON: {
-        region: process.env.AWS_REGION,
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-    },
+    AWSConfigJSON: AWSCONFIG,
     ttl: 24 * 60 * 60 * 1000
 });
 
@@ -78,7 +76,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const spotifyApi = new SpotifyWebApi({
     clientId: process.env.SPOTIFY_CLIENT_ID,
     clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-    redirectUri: process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/auth/spotify/callback'
+    redirectUri: process.env.SPOTIFY_REDIRECT_URI
 });
 
 // Return To URL middleware
@@ -99,7 +97,7 @@ app.get('/auth/google', (req, res, next) => {
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: `${process.env.CLIENT_URL}/signin` }), (req, res) => {
     const returnTo = req.session.returnTo || '/';
     delete req.session.returnTo;
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3001'}${returnTo}?auth=success`);
+    res.redirect(`${process.env.CLIENT_URL}${returnTo}?auth=success`);
 });
 app.get('/auth/github', (req, res, next) => {
     req.session.returnTo = req.query.returnTo;
@@ -108,7 +106,7 @@ app.get('/auth/github', (req, res, next) => {
 app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: `${process.env.CLIENT_URL}/signin` }), (req, res) => {
     const returnTo = req.session.returnTo || '/';
     delete req.session.returnTo;
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3001'}${returnTo}?auth=success`);
+    res.redirect(`${process.env.CLIENT_URL}${returnTo}?auth=success`);
 });
 app.get('/auth/spotify', (req, res, _next) => {
     const returnTo = req.query.returnTo || '/song-recommender';
@@ -144,7 +142,7 @@ app.get('/auth/spotify/callback', (req, res, next) => {
 }, (req, res) => {
     const returnTo = req.session.returnTo || '/song-recommender';
     delete req.session.returnTo;
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3001'}${returnTo}?spotifyCallback=true`);
+    res.redirect(`${process.env.CLIENT_URL}${returnTo}?spotifyCallback=true`);
 });
 app.post('/auth/spotify/disconnect', isAuthenticated, SpotifyDisconnect);
 app.get('/auth/check', AuthCheck);
@@ -231,7 +229,6 @@ app.post('/resize', upload.single('image'), ResizeImage);
 app.post('/upscale', upload.single('image'), enhanceImage);
 
 // Song recommendation routes
-const songRouter = setupSongRoutes();
 app.use('/api/songs', songRouter);
 
 // Error handling middleware

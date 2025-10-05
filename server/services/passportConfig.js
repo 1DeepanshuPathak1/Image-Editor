@@ -66,7 +66,7 @@ passport.use('local', new LocalStrategy({
 passport.use('google', new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/google/callback"
+    callbackURL: process.env.GOOGLE_CALLBACK_URL
 }, async (_accessToken, _refreshToken, profile, done) => {
     try {
         let userAuth = await redisService.findUserByGoogleId(profile.id);
@@ -93,7 +93,7 @@ passport.use('google', new GoogleStrategy({
 passport.use('github', new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/auth/github/callback",
+    callbackURL: process.env.GITHUB_CALLBACK_URL,
     scope: ['user:email']
 }, async (_accessToken, _refreshToken, profile, done) => {
     try {
@@ -121,7 +121,7 @@ passport.use('github', new GitHubStrategy({
 passport.use('spotify', new SpotifyStrategy({
     clientID: process.env.SPOTIFY_CLIENT_ID,
     clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-    callbackURL: process.env.SPOTIFY_REDIRECT_URI || "http://localhost:3000/auth/spotify/callback",
+    callbackURL: process.env.SPOTIFY_REDIRECT_URI,
     scope: [
         'user-read-private',
         'user-read-email',

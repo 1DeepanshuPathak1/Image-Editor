@@ -44,7 +44,7 @@ const ResizeImagePage = () => {
         const widthValue = width || document.getElementById('widthInput').value;
         const heightValue = height || document.getElementById('heightInput').value;
         
-        let url = `http://localhost:3000/resize?width=${widthValue}&height=${heightValue}&format=${imageFormat}`;
+        let url = `${import.meta.env.VITE_SERVER_URL}/resize?width=${widthValue}&height=${heightValue}&format=${imageFormat}`;
         
         if (targetSize) {
             url += `&size=${targetSize}`;

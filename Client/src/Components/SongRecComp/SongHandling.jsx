@@ -67,7 +67,7 @@ export const useSongHandling = (
                 formDataEntries[key] = value;
             }
 
-            const apiResponse = await fetch(`http://localhost:3000/api/songs/recommend-song?skip=${skipCount}`, {
+            const apiResponse = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/recommend-song?skip=${skipCount}`, {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'

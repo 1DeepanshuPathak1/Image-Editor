@@ -17,7 +17,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
       for (const artistId of uniqueArtists) {
         if (!artistImages[artistId]) {
           try {
-            const response = await fetch(`http://localhost:3000/api/songs/artist/${artistId}?userId=${userId}`, {
+            const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/artist/${artistId}?userId=${userId}`, {
               method: 'GET',
               credentials: 'include',
             });
@@ -67,7 +67,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
 
     try {
       for (const artist of selectedArtists) {
-        const response = await fetch('http://localhost:3000/api/songs/feedback', {
+        const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/feedback`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
 
   const handleRemoveArtist = async (artistId) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/songs/preferences/${userId}/artist/${artistId}`, {
+      const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/preferences/${userId}/artist/${artistId}`, {
         method: 'DELETE',
         credentials: 'include',
       });
