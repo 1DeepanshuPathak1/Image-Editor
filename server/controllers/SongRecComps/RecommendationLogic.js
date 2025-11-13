@@ -96,7 +96,7 @@ class RecommendationLogic {
     getMarketFromUser(user, preferences) {
         const marketMap = {
             'en': 'US', 'es': 'ES', 'fr': 'FR', 'de': 'DE', 'it': 'IT',
-            'pt': 'BR', 'ko': 'KR', 'ja': 'JP', 'hi': 'IN', 'ar': 'EG'
+            'pt': 'BR', 'ko': 'KR', 'ja': 'JP', 'hi': 'IN', 'ar': 'SA'
         };
 
         const userCountry = user.country;
@@ -108,62 +108,78 @@ class RecommendationLogic {
     }
 
     buildSearchQuery(preferences, skipCount) {
-        const { mood = '', genre = '', language = '', artist, popularity } = preferences;
-        let query = '';
-
-        if (language) {
-            const languageKeywords = {
-                'en': ['english', 'pop', 'rock', 'hip hop', 'country', 'rnb', 'london', 'british'],
-                'es': ['reggaeton', 'salsa', 'latino', 'mexicano'],
-                'fr': ['français', 'chanson', 'rap français', 'paris'],
-                'de': ['deutsch', 'schlager', 'volksmusik', 'berlin'],
-                'it': ['italiano', 'opera', 'tarantella', 'milano'],
-                'pt': ['português', 'samba', 'fado', 'brasil'],
-                'ko': ['k-pop', 'korean', 'seoul', 'ost'],
-                'ja': ['j-pop', 'anime', 'tokyo', 'j-rock'],
-                'hi': ['bollywood', 'indian', 'desi', 'hindi'],
-                'ar': ['arabic', 'khaleeji', 'cairo', 'oud']
-            };
-
-            if (languageKeywords[language]) {
-                query += languageKeywords[language].join(' OR ');
-                if (genre) query += ` ${genre}`;
-                if (mood) query += ` ${mood}`;
-                console.log('Search query - ', query);
-                return query;
-            }
-        }
-
-        if (genre) query += `genre:${genre}`;
+        const { mood = '', genre = '', language = '', artist } = preferences;
+        const queryParts = [];
 
         if (artist) {
             const artistName = typeof artist === 'string' ? artist : artist.name;
             if (artistName) {
                 const sanitizedName = artistName.replace(/['"]/g, '').trim();
-                if (sanitizedName) query += ` artist:"${sanitizedName}"`;
+                if (sanitizedName) {
+                    queryParts.push(`artist:"${sanitizedName}"`);
+                }
             }
         }
 
-        const moodSeedWords = this.getMoodSeedWords(mood);
-        if (moodSeedWords?.length > 0) {
-            const seedWordsToUse = skipCount > 0
-                ? moodSeedWords[skipCount % moodSeedWords.length]
-                : moodSeedWords.join(' ');
-            query = `${seedWordsToUse} ${query}`;
+        if (genre) {
+            queryParts.push(`genre:"${genre}"`);
+        }
+
+        if (language) {
+            const languageTerms = this.getLanguageSearchTerms(language);
+            if (languageTerms.length > 0) {
+                const languageQuery = languageTerms.map(term => `"${term}"`).join(' OR ');
+                queryParts.push(`(${languageQuery})`);
+            }
+        }
+
+        const moodKeywords = this.getMoodKeywords(mood);
+        if (moodKeywords.length > 0) {
+            const moodTerm = skipCount > 0 
+                ? moodKeywords[skipCount % moodKeywords.length]
+                : moodKeywords[0];
+            queryParts.push(moodTerm);
         }
 
         if (skipCount > 0) {
-            const randomWords = ['remix', 'live', 'instrumental', 'cover', 'acoustic', 'extended'];
-            const randomWord = randomWords[skipCount % randomWords.length];
-            query += ` NOT ${randomWord}`;
-
-            if (skipCount > 30) {
-                const secondRandomWord = randomWords[(skipCount + 3) % randomWords.length];
-                query += ` NOT ${secondRandomWord}`;
-            }
+            const excludeTerms = ['remix', 'live', 'acoustic', 'instrumental'];
+            const excludeIndex = Math.floor(skipCount / 10) % excludeTerms.length;
+            queryParts.push(`NOT ${excludeTerms[excludeIndex]}`);
         }
 
-        return query.trim() || 'music';
+        return queryParts.length > 0 ? queryParts.join(' ') : 'track:*';
+    }
+
+    getLanguageSearchTerms(language) {
+        const languageMap = {
+            'en': ['english'],
+            'es': ['spanish', 'latino', 'reggaeton'],
+            'fr': ['french', 'français'],
+            'de': ['german', 'deutsch'],
+            'it': ['italian', 'italiano'],
+            'pt': ['portuguese', 'português', 'brasil'],
+            'ko': ['korean', 'k-pop', 'kpop'],
+            'ja': ['japanese', 'j-pop', 'jpop'],
+            'hi': ['hindi', 'bollywood', 'desi'],
+            'ar': ['arabic', 'عربي']
+        };
+        return languageMap[language] || [];
+    }
+
+    getMoodKeywords(mood) {
+        const moodMap = {
+            'upbeat': ['energetic', 'upbeat', 'lively'],
+            'happy': ['happy', 'cheerful', 'joyful'],
+            'sad': ['sad', 'melancholic', 'emotional'],
+            'relax': ['relaxing', 'calm', 'chill'],
+            'intense': ['intense', 'powerful', 'dramatic'],
+            'romantic': ['romantic', 'love', 'passionate'],
+            'dark': ['dark', 'moody', 'atmospheric'],
+            'dreamy': ['dreamy', 'ethereal', 'ambient'],
+            'epic': ['epic', 'cinematic', 'grand'],
+            'angry': ['aggressive', 'angry', 'fierce']
+        };
+        return moodMap[mood] || [];
     }
 
     filterAndProcessTracks(tracks, preferences) {
@@ -298,22 +314,6 @@ class RecommendationLogic {
         return broadenedPrefs;
     }
 
-    getMoodSeedWords(mood) {
-        const moodSeedMap = {
-            'upbeat': ['dance', 'energetic', 'party', 'summer', 'fun'],
-            'happy': ['bright', 'cheerful', 'optimistic', 'sunny', 'positive'],
-            'sad': ['melancholic', 'emotional', 'heartbreak', 'reflective'],
-            'relax': ['peaceful', 'calm', 'serene', 'chill', 'ambient'],
-            'intense': ['powerful', 'energy', 'dynamic', 'epic'],
-            'romantic': ['love', 'passionate', 'intimate', 'beautiful'],
-            'dark': ['mysterious', 'deep', 'atmospheric', 'haunting'],
-            'dreamy': ['ethereal', 'space', 'surreal', 'ambient'],
-            'epic': ['orchestral', 'cinematic', 'majestic', 'grand'],
-            'angry': ['aggressive', 'heavy', 'rage', 'tension']
-        };
-        return moodSeedMap[mood] || [];
-    }
-
     clearOldSuggestionHistory() {
         if (this.recommender.suggestionHistory.size > 1000) {
             this.recommender.suggestionHistory.clear();
@@ -363,7 +363,7 @@ class RecommendationLogic {
             }
 
             const combinedPreferences = {
-                mood: imageAnalysis.mood || preferences.mood || '',
+                mood: preferences.mood || imageAnalysis.mood || '',
                 genre: preferences.genre || imageAnalysis.genre || '',
                 language: preferences.language || '',
                 popularity: preferences.popularity || '',

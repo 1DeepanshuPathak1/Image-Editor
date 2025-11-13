@@ -53,7 +53,7 @@ export const languageOptions = [
     { value: "ar", label: "Arabic" }
 ];
 
-export const ArtistSearch = ({ onSelect }) => {
+export const ArtistSearch = ({ onSelect, userId }) => {
     const [query, setQuery] = useState('');
     const [artists, setArtists] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -78,7 +78,7 @@ export const ArtistSearch = ({ onSelect }) => {
             }
             setLoading(true);
             try {
-                const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/search-artists?q=${query}`);
+                const response = await fetch(`${import.meta.env.VITE_SERVER_URL}/api/songs/search-artists?q=${query}&userId=${userId}`);
                 const data = await response.json();
                 setArtists(data.artists);
             } catch (error) {
@@ -89,7 +89,7 @@ export const ArtistSearch = ({ onSelect }) => {
 
         const debounce = setTimeout(fetchArtists, 300);
         return () => clearTimeout(debounce);
-    }, [query]);
+    }, [query, userId]);
 
     return (
         <div className="sr-artist-search" ref={dropdownRef}>

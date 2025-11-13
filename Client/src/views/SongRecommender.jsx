@@ -152,7 +152,7 @@ const SongRecommenderPage = () => {
                                 <div className="sr-advanced-options">
                                     <div className="sr-advanced-section">
                                         <label className="sr-label">Artist</label>
-                                        <ArtistSearch onSelect={setSelectedArtist} />
+                                        <ArtistSearch onSelect={setSelectedArtist} userId={userId} />
                                     </div>
 
                                     <div className="sr-advanced-section">

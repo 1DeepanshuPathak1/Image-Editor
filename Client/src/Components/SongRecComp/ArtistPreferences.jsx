@@ -199,7 +199,7 @@ const ArtistPreferences = ({ likedArtists, dislikedArtists, onArtistRemove, user
           )}
           <div className="sr-artist-search-wrapper">
             <div className="sr-artist-search">
-              <ArtistSearch onSelect={handleArtistSelect} />
+              <ArtistSearch onSelect={handleArtistSelect} userId={userId} />
             </div>
             {selectedArtists.length > 0 ? (
               <button
