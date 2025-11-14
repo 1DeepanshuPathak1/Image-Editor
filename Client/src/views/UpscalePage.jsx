@@ -43,7 +43,7 @@ const UpscalePage = () => {
       formData.append('image', blob, 'image.png');
       formData.append('settings', JSON.stringify(settings));
 
-            const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/upscale`, {
+      const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/upscale`, {
         method: 'POST',
         body: formData,
       });

@@ -5,7 +5,7 @@ class RecommendationLogic {
         this.recommender = recommender;
     }
 
-    async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0, userId) {
+    async findSuitableTrack(preferences = {}, skipCount = 0, retryCount = 0, userId, imageAnalysis = null) {
         try {
             const spotifyApi = await this.recommender.spotifyOps.getSpotifyApi(userId);
             const user = await this.recommender.userOps.findUserById(userId);
@@ -18,13 +18,67 @@ class RecommendationLogic {
                 await this.updateDislikedArtistsCatalog(preferences.dislikedArtists, userId);
             }
 
+            const hasFilters = !!(preferences.artist || preferences.genre || preferences.mood || preferences.popularity || preferences.language);
+
+            if (preferences.artist) {
+                const artistId = typeof preferences.artist === 'object' ? preferences.artist.id : preferences.artist;
+                
+                try {
+                    const topTracksResponse = await spotifyApi.getArtistTopTracks(artistId, user.country || 'US');
+                    let tracks = topTracksResponse.body.tracks;
+
+                    if (!tracks || tracks.length === 0) {
+                        console.warn('findSuitableTrack: No top tracks found for artist', { userId, artistId });
+                        throw new Error('No tracks found for this artist');
+                    }
+
+                    tracks = this.filterAndProcessTracks(tracks, { ...preferences, skipArtistFilter: true });
+
+                    if (tracks.length === 0) {
+                        console.warn('findSuitableTrack: No valid tracks after filtering', { userId, artistId });
+                        throw new Error('No suitable tracks found for this artist');
+                    }
+
+                    const moodFilteredTracks = imageAnalysis ? 
+                        this.filterTracksByImageMood(tracks, imageAnalysis, preferences) : 
+                        tracks;
+
+                    if (moodFilteredTracks.length === 0 && tracks.length > 0) {
+                        return this.shuffleArray(tracks).slice(0, 30);
+                    }
+
+                    const rankingPreferences = hasFilters ? 
+                        { likedArtists: [], dislikedArtists: [], likedSongs: [], dislikedSongs: [] } :
+                        {
+                            likedArtists: preferences.likedArtists || [],
+                            dislikedArtists: preferences.dislikedArtists || [],
+                            likedSongs: preferences.likedSongs || [],
+                            dislikedSongs: preferences.dislikedSongs || []
+                        };
+
+                    const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
+                        moodFilteredTracks.length > 0 ? moodFilteredTracks : tracks,
+                        rankingPreferences
+                    );
+
+                    return rankedTracks;
+                } catch (error) {
+                    console.error('findSuitableTrack: Error fetching artist top tracks', { 
+                        userId, 
+                        artistId, 
+                        error: error.message 
+                    });
+                    throw error;
+                }
+            }
+
             const searchOptions = {
                 limit: 50,
                 offset: skipCount + (Math.floor(Math.random() * 200)),
                 market: this.getMarketFromUser(user, preferences)
             };
 
-            const searchQuery = this.buildSearchQuery(preferences, skipCount);
+            const searchQuery = this.buildSearchQuery(preferences, skipCount, imageAnalysis);
 
             let searchResults;
             try {
@@ -53,7 +107,7 @@ class RecommendationLogic {
             if (!searchResults.body.tracks?.items?.length) {
                 console.warn('findSuitableTrack: No tracks found', { userId, searchQuery });
                 if (retryCount < this.recommender.maxRetries) {
-                    return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1, userId);
+                    return this.findSuitableTrack(this.broadenSearchPreferences(preferences, retryCount), skipCount, retryCount + 1, userId, imageAnalysis);
                 }
                 throw new Error('No tracks found with the current search criteria');
             }
@@ -63,21 +117,29 @@ class RecommendationLogic {
             if (tracks.length === 0) {
                 console.warn('findSuitableTrack: No valid tracks after filtering', { userId, searchQuery });
                 if (retryCount < this.recommender.maxRetries) {
-                    return this.findSuitableTrack(preferences, skipCount + 50, retryCount + 1, userId);
+                    return this.findSuitableTrack(preferences, skipCount + 50, retryCount + 1, userId, imageAnalysis);
                 }
                 throw new Error('No new tracks available. Try different preferences.');
             }
 
-            tracks = this.shuffleArray(tracks);
+            const moodFilteredTracks = imageAnalysis ? 
+                this.filterTracksByImageMood(tracks, imageAnalysis, preferences) : 
+                tracks;
 
-            const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
-                tracks,
+            const tracksToRank = moodFilteredTracks.length > 0 ? moodFilteredTracks : tracks;
+
+            const rankingPreferences = hasFilters ? 
+                { likedArtists: [], dislikedArtists: [], likedSongs: [], dislikedSongs: [] } :
                 {
                     likedArtists: preferences.likedArtists || [],
                     dislikedArtists: preferences.dislikedArtists || [],
                     likedSongs: preferences.likedSongs || [],
                     dislikedSongs: preferences.dislikedSongs || []
-                }
+                };
+
+            const rankedTracks = await SongRecommendationSystem.rankAndFilterSongs(
+                tracksToRank,
+                rankingPreferences
             );
 
             return rankedTracks;
@@ -91,6 +153,68 @@ class RecommendationLogic {
             console.error('findSuitableTrack: Error finding tracks', { userId, error: error.message });
             throw error;
         }
+    }
+
+    filterTracksByImageMood(tracks, imageAnalysis, preferences) {
+        const imageMood = imageAnalysis.mood?.toLowerCase() || '';
+        const imageEnergy = imageAnalysis.energy_level || 0.5;
+        const imageValence = imageAnalysis.valence || 0.5;
+        const genreHints = imageAnalysis.genre_hints || [];
+
+        const moodEnergyMap = {
+            'happy': { minEnergy: 0.5, minValence: 0.6 },
+            'upbeat': { minEnergy: 0.6, minValence: 0.5 },
+            'energetic': { minEnergy: 0.7, minValence: 0.4 },
+            'calm': { maxEnergy: 0.5, minValence: 0.4 },
+            'peaceful': { maxEnergy: 0.4, minValence: 0.5 },
+            'sad': { maxEnergy: 0.5, maxValence: 0.4 },
+            'melancholic': { maxEnergy: 0.4, maxValence: 0.3 },
+            'dark': { maxEnergy: 0.6, maxValence: 0.3 },
+            'intense': { minEnergy: 0.7, minValence: 0.3 },
+            'romantic': { minEnergy: 0.3, maxEnergy: 0.6, minValence: 0.5 }
+        };
+
+        const moodCriteria = moodEnergyMap[imageMood] || {};
+
+        return tracks.filter(track => {
+            let matchScore = 0;
+
+            if (track.name && imageMood) {
+                const trackNameLower = track.name.toLowerCase();
+                if (trackNameLower.includes(imageMood)) {
+                    matchScore += 10;
+                }
+            }
+
+            if (preferences.mood) {
+                const preferredMood = preferences.mood.toLowerCase();
+                if (track.name && track.name.toLowerCase().includes(preferredMood)) {
+                    matchScore += 8;
+                }
+            }
+
+            if (genreHints.length > 0 && track.genre) {
+                const trackGenreLower = track.genre.toLowerCase();
+                if (genreHints.some(hint => trackGenreLower.includes(hint.toLowerCase()))) {
+                    matchScore += 5;
+                }
+            }
+
+            if (moodCriteria.minEnergy !== undefined && imageEnergy < moodCriteria.minEnergy) {
+                matchScore -= 3;
+            }
+            if (moodCriteria.maxEnergy !== undefined && imageEnergy > moodCriteria.maxEnergy) {
+                matchScore -= 3;
+            }
+            if (moodCriteria.minValence !== undefined && imageValence < moodCriteria.minValence) {
+                matchScore -= 3;
+            }
+            if (moodCriteria.maxValence !== undefined && imageValence > moodCriteria.maxValence) {
+                matchScore -= 3;
+            }
+
+            return matchScore >= -5;
+        });
     }
 
     getMarketFromUser(user, preferences) {
@@ -107,22 +231,29 @@ class RecommendationLogic {
         return 'US';
     }
 
-    buildSearchQuery(preferences, skipCount) {
-        const { mood = '', genre = '', language = '', artist } = preferences;
+    buildSearchQuery(preferences, skipCount, imageAnalysis = null) {
+        const { mood = '', genre = '', language = '' } = preferences;
         const queryParts = [];
 
-        if (artist) {
-            const artistName = typeof artist === 'string' ? artist : artist.name;
-            if (artistName) {
-                const sanitizedName = artistName.replace(/['"]/g, '').trim();
-                if (sanitizedName) {
-                    queryParts.push(`artist:"${sanitizedName}"`);
-                }
+        const imageMood = imageAnalysis?.mood || '';
+        const genreHints = imageAnalysis?.genre_hints || [];
+
+        const primaryMood = mood || imageMood;
+        if (primaryMood) {
+            const moodKeywords = this.getMoodKeywords(primaryMood);
+            if (moodKeywords.length > 0) {
+                const moodTerm = skipCount > 0 
+                    ? moodKeywords[skipCount % moodKeywords.length]
+                    : moodKeywords[0];
+                queryParts.push(moodTerm);
             }
         }
 
         if (genre) {
             queryParts.push(`genre:"${genre}"`);
+        } else if (genreHints.length > 0 && !genre) {
+            const genreHint = genreHints[0];
+            queryParts.push(`genre:"${genreHint}"`);
         }
 
         if (language) {
@@ -131,14 +262,6 @@ class RecommendationLogic {
                 const languageQuery = languageTerms.map(term => `"${term}"`).join(' OR ');
                 queryParts.push(`(${languageQuery})`);
             }
-        }
-
-        const moodKeywords = this.getMoodKeywords(mood);
-        if (moodKeywords.length > 0) {
-            const moodTerm = skipCount > 0 
-                ? moodKeywords[skipCount % moodKeywords.length]
-                : moodKeywords[0];
-            queryParts.push(moodTerm);
         }
 
         if (skipCount > 0) {
@@ -172,22 +295,27 @@ class RecommendationLogic {
             'happy': ['happy', 'cheerful', 'joyful'],
             'sad': ['sad', 'melancholic', 'emotional'],
             'relax': ['relaxing', 'calm', 'chill'],
+            'calm': ['calm', 'peaceful', 'serene'],
+            'peaceful': ['peaceful', 'tranquil', 'quiet'],
             'intense': ['intense', 'powerful', 'dramatic'],
             'romantic': ['romantic', 'love', 'passionate'],
             'dark': ['dark', 'moody', 'atmospheric'],
             'dreamy': ['dreamy', 'ethereal', 'ambient'],
             'epic': ['epic', 'cinematic', 'grand'],
-            'angry': ['aggressive', 'angry', 'fierce']
+            'angry': ['aggressive', 'angry', 'fierce'],
+            'energetic': ['energetic', 'dynamic', 'vigorous'],
+            'melancholic': ['melancholic', 'sad', 'wistful']
         };
         return moodMap[mood] || [];
     }
 
     filterAndProcessTracks(tracks, preferences) {
         const allowedVersions = preferences.allowedVersions || [];
+        const skipArtistFilter = preferences.skipArtistFilter || false;
 
         return tracks
             .filter(track => !this.recommender.suggestionHistory.has(track.uri))
-            .filter(track => !this.isArtistDisliked(track.artists[0].id))
+            .filter(track => skipArtistFilter || !this.isArtistDisliked(track.artists[0].id))
             .filter(track => {
                 const lowerName = track.name.toLowerCase();
                 const unwantedVersions = [
@@ -320,21 +448,21 @@ class RecommendationLogic {
         }
     }
 
-    async retrySearch(preferences, skipCount, userId) {
+    async retrySearch(preferences, skipCount, userId, imageAnalysis) {
         const retryStrategies = [
             async () => {
                 const simplifiedPrefs = {
                     mood: preferences.mood,
                     language: preferences.language
                 };
-                return await this.findSuitableTrack(simplifiedPrefs, skipCount, 0, userId);
+                return await this.findSuitableTrack(simplifiedPrefs, skipCount, 0, userId, imageAnalysis);
             },
             async () => {
                 const simplifiedPrefs = {
                     genre: preferences.genre,
                     language: preferences.language
                 };
-                return await this.findSuitableTrack(simplifiedPrefs, skipCount, 0, userId);
+                return await this.findSuitableTrack(simplifiedPrefs, skipCount, 0, userId, imageAnalysis);
             }
         ];
 
@@ -363,8 +491,8 @@ class RecommendationLogic {
             }
 
             const combinedPreferences = {
-                mood: preferences.mood || imageAnalysis.mood || '',
-                genre: preferences.genre || imageAnalysis.genre || '',
+                mood: preferences.mood || '',
+                genre: preferences.genre || '',
                 language: preferences.language || '',
                 popularity: preferences.popularity || '',
                 artist: preferences.artist || '',
@@ -377,14 +505,14 @@ class RecommendationLogic {
             };
 
             try {
-                const tracks = await this.findSuitableTrack(combinedPreferences, skipCount, 0, userId);
+                const tracks = await this.findSuitableTrack(combinedPreferences, skipCount, 0, userId, imageAnalysis);
                 return tracks;
             } catch (error) {
                 console.error('getSongRecommendation: Initial search failed', { userId, error: error.message });
                 if (error.message.includes('Spotify')) {
                     throw error;
                 }
-                return await this.retrySearch(combinedPreferences, skipCount, userId);
+                return await this.retrySearch(combinedPreferences, skipCount, userId, imageAnalysis);
             }
         } catch (error) {
             console.error('getSongRecommendation: Recommendation error', { userId, error: error.message });

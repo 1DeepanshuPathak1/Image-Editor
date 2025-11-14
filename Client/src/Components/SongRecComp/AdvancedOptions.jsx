@@ -2,7 +2,7 @@ import  { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, Loader } from 'lucide-react';
 import './css/ArtistSearch.css';
 
-export const genreOptions = [
+const genreOptionsData = [
     { value: "pop", label: "Pop" },
     { value: "rock", label: "Rock" },
     { value: "hip-hop", label: "Hip Hop" },
@@ -19,7 +19,7 @@ export const genreOptions = [
     { value: "reggae", label: "Reggae" }
 ];
 
-export const moodOptions = [
+const moodOptionsData = [
     { value: "happy", label: "Happy" },
     { value: "calm", label: "Calm" },
     { value: "energetic", label: "Energetic" },
@@ -32,7 +32,7 @@ export const moodOptions = [
     { value: "peaceful", label: "Peaceful" }
 ];
 
-export const popularityOptions = [
+const popularityOptionsData = [
     { value: "any", label: "Any Popularity" },
     { value: "mainstream", label: "Mainstream (1M+ monthly listeners)" },
     { value: "rising", label: "Rising Artists (100K-1M listeners)" },
@@ -40,7 +40,7 @@ export const popularityOptions = [
     { value: "undiscovered", label: "Undiscovered (Under 10K listeners)" }
 ];
 
-export const languageOptions = [
+const languageOptionsData = [
     { value: "en", label: "English" },
     { value: "es", label: "Spanish" },
     { value: "fr", label: "French" },
@@ -52,6 +52,11 @@ export const languageOptions = [
     { value: "hi", label: "Hindi" },
     { value: "ar", label: "Arabic" }
 ];
+
+export const genreOptions = genreOptionsData;
+export const moodOptions = moodOptionsData;
+export const popularityOptions = popularityOptionsData;
+export const languageOptions = languageOptionsData;
 
 export const ArtistSearch = ({ onSelect, userId }) => {
     const [query, setQuery] = useState('');
