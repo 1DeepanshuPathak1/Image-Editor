@@ -1,5 +1,5 @@
-import  { useState, useRef, useEffect } from 'react';
-import { Search, ChevronDown, Loader } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Search, ChevronDown, Loader, X } from 'lucide-react';
 import './css/ArtistSearch.css';
 
 const genreOptionsData = [
@@ -58,7 +58,7 @@ export const moodOptions = moodOptionsData;
 export const popularityOptions = popularityOptionsData;
 export const languageOptions = languageOptionsData;
 
-export const ArtistSearch = ({ onSelect, userId }) => {
+export const ArtistSearch = ({ onSelect, userId, disabled, selectedArtist }) => {
     const [query, setQuery] = useState('');
     const [artists, setArtists] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -96,8 +96,14 @@ export const ArtistSearch = ({ onSelect, userId }) => {
         return () => clearTimeout(debounce);
     }, [query, userId]);
 
+    const handleClear = () => {
+        setQuery('');
+        onSelect(null);
+        setIsOpen(false);
+    };
+
     return (
-        <div className="sr-artist-search" ref={dropdownRef}>
+        <div className={`sr-artist-search ${disabled ? 'sr-disabled' : ''}`} ref={dropdownRef}>
             <div className="sr-search-input-wrapper">
                 <Search className="sr-search-icon" size={16} />
                 <input
@@ -107,12 +113,22 @@ export const ArtistSearch = ({ onSelect, userId }) => {
                         setQuery(e.target.value);
                         setIsOpen(true);
                     }}
-                    onClick={() => setIsOpen(true)}
+                    onClick={() => !disabled && setIsOpen(true)}
                     placeholder="Search for artists..."
                     className="sr-search-input"
+                    disabled={disabled}
                 />
+                {selectedArtist && !disabled && (
+                    <button
+                        className="sr-search-clear"
+                        onClick={handleClear}
+                        aria-label="Clear artist"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
             </div>
-            {isOpen && (query || artists.length > 0) && (
+            {isOpen && !disabled && (query || artists.length > 0) && (
                 <div className="sr-artist-dropdown">
                     {loading ? (
                         <div className="sr-dropdown-loading">
@@ -154,16 +170,19 @@ export const ArtistSearch = ({ onSelect, userId }) => {
     );
 };
 
-export const CustomSelect = ({ options, value, onChange, placeholder }) => {
+export const CustomSelect = ({ options, value, onChange, placeholder, disabled }) => {
     const [isOpen, setIsOpen] = useState(false);
     const selectRef = useRef(null);
 
     return (
-        <div className="sr-select-container" ref={selectRef}>
-            <div className="sr-select-trigger" onClick={() => setIsOpen(!isOpen)}>
+        <div className={`sr-select-container ${disabled ? 'sr-disabled' : ''}`} ref={selectRef}>
+            <div
+                className="sr-select-trigger"
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+            >
                 <span>{value ? options.find(opt => opt.value === value)?.label : placeholder}</span>
                 <div className="sr-select-actions">
-                    {value && (
+                    {value && !disabled && (
                         <button
                             className="sr-select-clear"
                             onClick={(e) => {
@@ -180,7 +199,7 @@ export const CustomSelect = ({ options, value, onChange, placeholder }) => {
                     />
                 </div>
             </div>
-            {isOpen && (
+            {isOpen && !disabled && (
                 <div className="sr-select-dropdown">
                     <div
                         className="sr-select-option sr-select-option-clear"

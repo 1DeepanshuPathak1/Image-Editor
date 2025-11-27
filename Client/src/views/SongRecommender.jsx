@@ -152,7 +152,12 @@ const SongRecommenderPage = () => {
                                 <div className="sr-advanced-options">
                                     <div className="sr-advanced-section">
                                         <label className="sr-label">Artist</label>
-                                        <ArtistSearch onSelect={setSelectedArtist} userId={userId} />
+                                        <ArtistSearch
+                                            onSelect={setSelectedArtist}
+                                            userId={userId}
+                                            disabled={!!(genre || mood || popularity || language)}
+                                            selectedArtist={selectedArtist}
+                                        />
                                     </div>
 
                                     <div className="sr-advanced-section">
@@ -162,6 +167,7 @@ const SongRecommenderPage = () => {
                                             value={genre}
                                             onChange={setGenre}
                                             placeholder="Select Genre"
+                                            disabled={!!selectedArtist}
                                         />
                                     </div>
 
@@ -172,6 +178,7 @@ const SongRecommenderPage = () => {
                                             value={mood}
                                             onChange={setMood}
                                             placeholder="Select Mood"
+                                            disabled={!!selectedArtist}
                                         />
                                     </div>
 
@@ -182,6 +189,7 @@ const SongRecommenderPage = () => {
                                             value={popularity}
                                             onChange={setPopularity}
                                             placeholder="Select Popularity"
+                                            disabled={!!selectedArtist}
                                         />
                                     </div>
 
@@ -192,6 +200,7 @@ const SongRecommenderPage = () => {
                                             value={language}
                                             onChange={setLanguage}
                                             placeholder="Select Language"
+                                            disabled={!!selectedArtist}
                                         />
                                     </div>
                                 </div>
